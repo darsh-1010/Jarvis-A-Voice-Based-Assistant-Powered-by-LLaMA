@@ -1,0 +1,9 @@
+speech_recognition
+pyttsx3
+opencv-python
+pyautogui
+requests
+beautifulsoup4
+langchain
+speedtest-cli
+pywhatkit
