@@ -23,8 +23,7 @@ To run Jarvis, follow these steps:
    ```bash
    git clone https://github.com/yourusername/jarvis.git
    cd jarvis
-2.Special Note: 
--There is a file named installer.py in the repository. You must run this file to automatically install all the necessary libraries required for Jarvis to function properly. Run it with:
+2. Special Note: There is a file named installer.py in the repository. You must run this file to automatically install all the necessary libraries required for Jarvis to function properly. Run it with:
    ```bash
      python installer.py
 
