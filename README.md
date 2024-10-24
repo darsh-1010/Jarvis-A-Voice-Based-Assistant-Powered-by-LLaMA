@@ -26,10 +26,6 @@ To run Jarvis, follow these steps:
 2.Special Note: 
 -There is a file named installer.py in the repository. You must run this file to automatically install all the necessary libraries required for Jarvis to function properly. Run it with:
   
-   bash
+   ```bash
    python installer.py
 
--Start Jarvis by running the main program:
-   
-   bash
-   python jarvis.py
