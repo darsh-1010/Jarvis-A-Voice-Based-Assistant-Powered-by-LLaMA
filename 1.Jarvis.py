@@ -48,6 +48,7 @@ def generate_and_speak(text):
             })
         )
 
+        
         # Append the assistant's response to the conversation history
         conversation_history.append(f"Assistant: {response}")
 
