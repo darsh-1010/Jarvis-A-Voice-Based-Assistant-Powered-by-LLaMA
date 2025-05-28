@@ -47,5 +47,5 @@ From launching apps and controlling system functions to playing music and provid
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourusername/jarvis.git
+git clone https://github.com/darsh-1010/jarvis.git
 cd jarvis
