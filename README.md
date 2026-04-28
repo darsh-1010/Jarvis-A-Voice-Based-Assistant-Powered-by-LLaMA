@@ -1,51 +1,55 @@
-# 🧠 Jarvis: A Voice-Based AI Assistant Powered by LLaMA
+# 🧠 Jarvis: Professional Voice AI Assistant
 
-## 🔍 Overview
-**Jarvis** is a voice-activated personal assistant that integrates natural language processing with system automation. Built using **LLaMA (Large Language Model Meta AI)** and Python, it simplifies everyday digital tasks through intelligent conversations and hands-free control.
-
-From launching apps and controlling system functions to playing music and providing real-time news updates, Jarvis is your all-in-one voice-based AI companion designed for productivity and ease of use.
+**Jarvis** is a modular, voice-activated personal assistant built with Python. It leverages **LLaMA (Gemma 2)** via Ollama for intelligent conversation and provides hands-free control over your computer and web tasks.
 
 ---
 
-## 🚀 Features
+## 🛠️ Installation & Setup
 
-### 🎙️ Voice Recognition
-- Real-time voice command processing using **Google Speech Recognition**.
-- Supports natural language interaction for intuitive control.
+### 1. Requirements
+- **Python 3.11+**
+- **Ollama** installed and running (`ollama run gemma2:2b`)
+- A working microphone and speakers
 
-### 🗣️ Text-to-Speech (TTS)
-- Converts responses into speech using **pyttsx3**.
-- Works offline and provides fast verbal feedback.
-
-### 🧠 LLaMA Model Integration
-- Uses the **LLaMA** large language model for intelligent and context-aware responses.
-- Enables conversational interaction and task execution.
-
-### 📷 Camera Control
-- Opens your device camera using voice input.
-- Supports taking snapshots or viewing a live camera feed.
-
-### 🖥️ System Commands
-- Launches applications like Notepad, Calculator, Chrome, etc.
-- Takes screenshots and saves them locally.
-- Tests internet speed and provides results.
-
-### 🎵 Music Playback
-- Plays music from **Spotify** or local files on command.
-- Controls playback and volume with voice instructions.
-
-### 📰 News Updates
-- Fetches the latest news headlines from trusted sources.
-- Reads updates aloud using the TTS engine.
-
-### 🔉 Volume Control
-- Adjusts system volume: increase, decrease, or mute.
-
----
-
-## 🛠️ Installation Guide
-
-### Step 1: Clone the Repository
+### 2. Install Dependencies
 ```bash
-git clone https://github.com/darsh-1010/jarvis.git
-cd jarvis
+pip install -r requirements.txt
+```
+
+### 3. Configuration
+1.  Create a `.env` file in the root directory (based on `.env.example`).
+2.  Add your **NewsAPI Key**:
+    ```env
+    NEWS_API_KEY=your_key_here
+    ```
+
+---
+
+## 🚀 Usage
+
+To start the assistant, run:
+```bash
+python main.py
+```
+
+1.  Say **"Jarvis"** to wake him up.
+2.  Give your command (e.g., "What time is it?", "Open Notepad", "Search for space travel on Google").
+3.  To put him back to sleep, say **"Sleep"**.
+4.  To exit, say **"Terminate"**.
+
+---
+
+## 📂 Project Structure
+
+- `main.py`: Entry point and command controller.
+- `jarvis/`: Core package containing audio, brain, and logging logic.
+- `jarvis/commands/`: Specific modules for system, media, and web features.
+- `.agents/`: Documentation and internal engineering standards.
+
+---
+
+## 📜 Documentation
+For a detailed look at how Jarvis works, check out:
+- [DOCUMENTATION.md](./DOCUMENTATION.md) - User-friendly guide.
+- [.agents/documentations/workflow.md](./.agents/documentations/workflow.md) - System architecture.
+- [.agents/documentations/function.md](./.agents/documentations/function.md) - Module breakdown.
