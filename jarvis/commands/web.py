@@ -53,11 +53,8 @@ def fetch_latest_news(category: str = "general") -> list:
         "language": "en"
     }
     
-    # Custom handling for the specific tech query in original code
     if category == "technology":
         params["q"] = "tesla"
-        # The original code used /everything for tech with a specific date
-        # For robustness, we'll stick to top-headlines but keep the category
     
     try:
         response = requests.get(base_url, params=params, timeout=10)
@@ -68,8 +65,7 @@ def fetch_latest_news(category: str = "general") -> list:
             return []
             
         articles = data.get("articles", [])
-        titles = [art["title"] for art in articles[:5]] # Limit to top 5
-        return titles
+        return [art["title"] for art in articles[:5]]
     except Exception as exc:
         logger.error(f"[WEB_NEWS_FATAL] Message: {exc}")
         return []

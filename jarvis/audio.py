@@ -1,23 +1,33 @@
 """Audio management for Jarvis (STT and TTS)."""
 import speech_recognition as sr
 import pyttsx3
-from jarvis.config import SPEECH_RATE, SPEECH_VOLUME
+from jarvis.config import SPEECH_VOLUME
+from jarvis.settings_manager import settings_manager
 from jarvis.logger import logger
 
 class AudioManager:
     """Manages speech recognition and text-to-speech."""
 
     def __init__(self):
-        """Initialize STT and TTS engines."""
-        self.recognizer = sr.Recognizer()
+        """Initialize the speech engine and recognizer."""
         self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', SPEECH_RATE)
+        self.recognizer = sr.Recognizer()
+        self.update_config()
+        logger.info("[AUDIO_INIT] Manager initialized.")
+
+    def update_config(self):
+        """Update TTS configuration from dynamic settings."""
+        voices = self.engine.getProperty('voices')
+        vid = settings_manager.get("voice_id", 0)
+        rate = settings_manager.get("speech_rate", 175)
+        
+        if voices:
+            target_vid = vid if len(voices) > vid else 0
+            self.engine.setProperty('voice', voices[target_vid].id)
+            
+        self.engine.setProperty('rate', rate)
         self.engine.setProperty('volume', SPEECH_VOLUME)
 
-        # Set default voice (usually index 0)
-        voices = self.engine.getProperty('voices')
-        if voices:
-            self.engine.setProperty('voice', voices[0].id)
 
     def speak(self, text: str) -> None:
         """
@@ -29,7 +39,9 @@ class AudioManager:
         if not text:
             return
 
+        self.update_config()
         logger.info(f"[SPEAK] Message: {text}")
+
         try:
             self.engine.say(text)
             self.engine.runAndWait()

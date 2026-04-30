@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;600;700&display=swap');
+@import "tailwindcss";
+
+
+@theme {
+  --font-sans: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-jarvis-bg: #F8FAFC;
+  --color-jarvis-primary: #0F172A;
+  --color-jarvis-secondary: #64748B;
+  --color-jarvis-border: #E2E8F0;
+  --color-jarvis-accent: #0284C7;
+  --color-jarvis-card: #FFFFFF;
+
+  --color-jarvis-bg-dark: #0F172A;
+  --color-jarvis-primary-dark: #F8FAFC;
+  --color-jarvis-secondary-dark: #94A3B8;
+  --color-jarvis-border-dark: #1E293B;
+  --color-jarvis-accent-dark: #38BDF8;
+  --color-jarvis-card-dark: #1E293B;
+}
+
+:root {
+  --bg: var(--color-jarvis-bg);
+  --text: var(--color-jarvis-primary);
+  --border: var(--color-jarvis-border);
+  --card: var(--color-jarvis-card);
+  --accent: var(--color-jarvis-accent);
+}
+
+.dark {
+  --bg: var(--color-jarvis-bg-dark);
+  --text: var(--color-jarvis-primary-dark);
+  --border: var(--color-jarvis-border-dark);
+  --card: var(--color-jarvis-card-dark);
+  --accent: var(--color-jarvis-accent-dark);
+}
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    @apply antialiased selection:bg-blue-100;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  }
+}
+
+@utility shadow-minimal {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+}
+
+@utility glass-minimal {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-minimal);
+}
+
+
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
