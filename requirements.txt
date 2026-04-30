@@ -21,3 +21,9 @@ psutil
 pydantic
 pydantic-settings
 python-multipart
+httpx
+chromadb
+tiktoken
+redis
+python-dotenv
+pywin32

@@ -1,80 +1,75 @@
 """Audio management for Jarvis (STT and TTS)."""
+import asyncio
 import speech_recognition as sr
 import pyttsx3
-from jarvis.config import SPEECH_VOLUME
-from jarvis.settings_manager import settings_manager
+from jarvis.config import config
 from jarvis.logger import logger
 
 class AudioManager:
-    """Manages speech recognition and text-to-speech."""
+    """Manages speech recognition and text-to-speech asynchronously."""
 
     def __init__(self):
         """Initialize the speech engine and recognizer."""
-        self.engine = pyttsx3.init()
         self.recognizer = sr.Recognizer()
-        self.update_config()
+        self._loop = asyncio.get_event_loop()
         logger.info("[AUDIO_INIT] Manager initialized.")
 
-    def update_config(self):
-        """Update TTS configuration from dynamic settings."""
-        voices = self.engine.getProperty('voices')
-        vid = settings_manager.get("voice_id", 0)
-        rate = settings_manager.get("speech_rate", 175)
+    def _get_engine(self):
+        """Initialize engine in a thread-safe manner if needed."""
+        engine = pyttsx3.init()
+        voices = engine.getProperty('voices')
+        vid = config.voice_id
+        rate = config.speech_rate
         
         if voices:
             target_vid = vid if len(voices) > vid else 0
-            self.engine.setProperty('voice', voices[target_vid].id)
+            engine.setProperty('voice', voices[target_vid].id)
             
-        self.engine.setProperty('rate', rate)
-        self.engine.setProperty('volume', SPEECH_VOLUME)
+        engine.setProperty('rate', rate)
+        engine.setProperty('volume', config.speech_volume)
+        return engine
 
-
-    def speak(self, text: str) -> None:
-        """
-        Convert text to speech.
-
-        Args:
-            text: The string to speak aloud.
-        """
+    async def speak(self, text: str) -> None:
+        """Convert text to speech without blocking the event loop."""
         if not text:
             return
 
-        self.update_config()
         logger.info(f"[SPEAK] Message: {text}")
+        await asyncio.to_thread(self._run_tts, text)
 
+    def _run_tts(self, text: str):
+        """Synchronous TTS runner to be executed in a thread."""
         try:
-            self.engine.say(text)
-            self.engine.runAndWait()
+            engine = self._get_engine()
+            engine.say(text)
+            engine.runAndWait()
+            # Clean up engine to prevent COM errors on Windows
+            del engine
         except Exception as exc:
             logger.error(f"[TTS_ERROR] Message: {exc}")
 
-    def listen(self, prompt: str = "Listening...") -> str:
-        """
-        Listen for audio input and convert to text.
+    async def listen(self, prompt: str = "Listening...") -> str:
+        """Listen for audio input asynchronously."""
+        return await asyncio.to_thread(self._run_stt, prompt)
 
-        Args:
-            prompt: Text to display/speak before listening.
-
-        Returns:
-            str: The recognized text in lowercase, or empty string on failure.
-        """
+    def _run_stt(self, prompt: str) -> str:
+        """Synchronous STT runner to be executed in a thread."""
         with sr.Microphone() as source:
             if prompt:
                 logger.info(f"[LISTEN] Status: {prompt}")
 
             # Adjust for ambient noise
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            audio = self.recognizer.listen(source)
-
             try:
+                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                 command = self.recognizer.recognize_google(audio)
                 logger.info(f"[RECOGNIZED] Text: {command}")
                 return command.lower()
+            except sr.WaitTimeoutError:
+                return ""
             except sr.UnknownValueError:
                 logger.debug("[STT_RETRY] Message: Could not understand audio")
-            except sr.RequestError as exc:
-                logger.error(f"[STT_ERROR] Message: API request failed: {exc}")
             except Exception as exc:
-                logger.error(f"[STT_FATAL] Message: {exc}")
+                logger.error(f"[STT_ERROR] Message: {exc}")
 
         return ""

@@ -1,98 +1,99 @@
-"""AI Brain for Jarvis with Redis memory, token management, and persona support."""
+import asyncio
 import time
 import json
 from abc import ABC, abstractmethod
 from typing import List, Optional, Any
 import google.generativeai as genai
-from openai import OpenAI
+from openai import AsyncOpenAI
 import tiktoken
 import redis
-from jarvis.config import (
-    OLLAMA_MODEL, GEMINI_MODEL, OPENROUTER_MODEL,
-    GEMINI_API_KEY, OPENROUTER_API_KEY,
-    REDIS_HOST, REDIS_PORT, REDIS_DB, USE_REDIS
-)
-from jarvis.settings_manager import settings_manager
+import httpx
+from jarvis.config import config
 from jarvis.logger import logger
 
-
 class BaseProvider(ABC):
-    """Abstract base class for AI providers."""
+    """Abstract base class for async AI providers."""
     @abstractmethod
-    def generate(self, question: str, context: str, timeout: int = 10) -> str:
+    async def generate(self, question: str, context: str, timeout: int = 20) -> str:
         """Generate a response."""
 
 class OllamaProvider(BaseProvider):
-    """Local Ollama provider."""
+    """Local Ollama provider (Async)."""
     def __init__(self):
         from langchain_ollama import OllamaLLM
         from langchain_core.prompts import ChatPromptTemplate
-        self.model = OllamaLLM(model=OLLAMA_MODEL)
+        self.model = OllamaLLM(model=config.ollama_model)
         template = "{persona}\nContext: {context}\nQuestion: {question}\nAnswer:"
         self.prompt = ChatPromptTemplate.from_template(template)
         self.chain = self.prompt | self.model
 
-    def generate(self, question: str, context: str, timeout: int = 10) -> str:
+    async def generate(self, question: str, context: str, timeout: int = 20) -> str:
+        # LangChain Ollama invoke is sync, wrap it in thread
+        return await asyncio.to_thread(self._invoke, question, context)
+
+    def _invoke(self, question: str, context: str) -> str:
         return self.chain.invoke({
-            "persona": settings_manager.get("persona"),
+            "persona": config.jarvis_persona,
             "context": context, 
             "question": question
         })
 
-
 class GeminiProvider(BaseProvider):
-    """Google Gemini provider."""
+    """Google Gemini provider (Async)."""
     def __init__(self):
-        if not GEMINI_API_KEY:
+        if not config.gemini_api_key:
             raise ValueError("GEMINI_API_KEY missing")
-        genai.configure(api_key=GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(GEMINI_MODEL)
+        genai.configure(api_key=config.gemini_api_key)
+        self.model = genai.GenerativeModel(config.gemini_model)
 
-    def generate(self, question: str, context: str, timeout: int = 10) -> str:
-        persona = settings_manager.get("persona")
-        full_prompt = f"{persona}\nContext: {context}\nQuestion: {question}\nAnswer:"
-        response = self.model.generate_content(
+    async def generate(self, question: str, context: str, timeout: int = 20) -> str:
+        full_prompt = f"{config.jarvis_persona}\nContext: {context}\nQuestion: {question}\nAnswer:"
+        # Gemini SDK generate_content is blocking, use thread or async method if available
+        response = await asyncio.to_thread(
+            self.model.generate_content,
             full_prompt,
             generation_config={"max_output_tokens": 512, "temperature": 0.7}
         )
         return response.text
 
-
 class OpenRouterProvider(BaseProvider):
-    """OpenRouter provider."""
+    """OpenRouter provider (Async)."""
     def __init__(self):
-        if not OPENROUTER_API_KEY:
+        if not config.openrouter_api_key:
             raise ValueError("OPENROUTER_API_KEY missing")
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY
+            api_key=config.openrouter_api_key
         )
 
-    def generate(self, question: str, context: str, timeout: int = 10) -> str:
-        persona = settings_manager.get("persona")
-        full_prompt = f"{persona}\nContext: {context}\nQuestion: {question}"
-        completion = self.client.chat.completions.create(
-            model=OPENROUTER_MODEL,
+    async def generate(self, question: str, context: str, timeout: int = 20) -> str:
+        full_prompt = f"{config.jarvis_persona}\nContext: {context}\nQuestion: {question}"
+        completion = await self.client.chat.completions.create(
+            model=config.openrouter_model,
             messages=[{"role": "user", "content": full_prompt}],
             max_tokens=512,
             timeout=timeout
         )
         return completion.choices[0].message.content
 
-
 class BrainManager:
-    """Manages AI logic with Redis memory and token tracking."""
+    """Manages AI logic with async providers, sliding memory, and token tracking."""
 
     def __init__(self):
         self.provider_instances: dict[str, Any] = {}
         self.chain = ["gemini", "openrouter", "ollama"]
-        self.tokenizer = tiktoken.get_encoding("cl100k_base") # Standard for GPT-4/Gemini
+        self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
         # Setup Redis
         self.redis = None
-        if USE_REDIS:
+        if config.use_redis:
             try:
-                self.redis = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+                self.redis = redis.Redis(
+                    host=config.redis_host, 
+                    port=config.redis_port, 
+                    db=config.redis_db, 
+                    decode_responses=True
+                )
                 self.redis.ping()
                 logger.info("[BRAIN_MEMORY] Connected to Redis.")
             except Exception as e:
@@ -100,28 +101,30 @@ class BrainManager:
         
         self.local_history: List[str] = []
 
-    def _get_history(self) -> List[str]:
+    async def _get_history(self) -> List[str]:
         if self.redis:
-            hist = self.redis.get("jarvis_history")
+            hist = await asyncio.to_thread(self.redis.get, "jarvis_history")
             return json.loads(hist) if hist else []
         return self.local_history
 
-    def _save_history(self, history: List[str]):
+    async def _save_history(self, history: List[str]):
+        # Sliding window: keep roughly 2000 tokens
+        trimmed_history = history[-10:] # Basic implementation for now
         if self.redis:
-            self.redis.set("jarvis_history", json.dumps(history[-10:]))
+            await asyncio.to_thread(self.redis.set, "jarvis_history", json.dumps(trimmed_history))
         else:
-            self.local_history = history[-10:]
+            self.local_history = trimmed_history
 
     def _count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text))
 
-    def _get_provider(self, name: str) -> Optional[BaseProvider]:
+    async def _get_provider(self, name: str) -> Optional[BaseProvider]:
         if name in self.provider_instances:
             return self.provider_instances[name]
         try:
-            if name == "gemini" and GEMINI_API_KEY:
+            if name == "gemini" and config.gemini_api_key:
                 self.provider_instances[name] = GeminiProvider()
-            elif name == "openrouter" and OPENROUTER_API_KEY:
+            elif name == "openrouter" and config.openrouter_api_key:
                 self.provider_instances[name] = OpenRouterProvider()
             elif name == "ollama":
                 self.provider_instances[name] = OllamaProvider()
@@ -130,25 +133,34 @@ class BrainManager:
             logger.error(f"[BRAIN_INIT] Failed {name}: {e}")
             return None
 
-    def generate_response(self, question: str) -> str:
+    async def generate_response(self, question: str) -> str:
         if not question:
             return "I didn't hear anything."
 
-        history = self._get_history()
-        context = "\n".join(history)
+        # RAG: Search for relevant context
+        from jarvis.memory.knowledge import kb
+        kb_context = await asyncio.to_thread(kb.query, question)
+        
+        history = await self._get_history()
+        
+        # Combine KB context and conversation history
+        full_context = f"KNOWLEDGE BASE:\n{kb_context}\n\nCONVERSATION HISTORY:\n" + "\n".join(history)
+        
         last_error = ""
 
+
         for name in self.chain:
-            provider = self._get_provider(name)
+            provider = await self._get_provider(name)
             if not provider: continue
 
             try:
                 start_time = time.time()
-                response = provider.generate(question, context)
+                response = await provider.generate(question, full_context)
                 duration = time.time() - start_time
                 
                 # Token management
-                tokens_in = self._count_tokens(question + context + JARVIS_PERSONA)
+                tokens_in = self._count_tokens(question + full_context + config.jarvis_persona)
+
                 tokens_out = self._count_tokens(response)
                 
                 logger.info(f"[BRAIN_USAGE] Provider: {name} | In: {tokens_in} | Out: {tokens_out} | Time: {duration:.2f}s")
@@ -156,7 +168,7 @@ class BrainManager:
                 # Update history
                 history.append(f"User: {question}")
                 history.append(f"Assistant: {response}")
-                self._save_history(history)
+                await self._save_history(history)
                 
                 return response
             except Exception as exc:
@@ -166,12 +178,13 @@ class BrainManager:
 
         return f"I'm sorry, sir. All modules failed. Error: {last_error}"
 
-    def analyze_error(self, command: str, error: str) -> str:
-        """Logic for Self-Correcting Code Agent (Pillar 5.1)."""
+    async def analyze_error(self, command: str, error: str) -> str:
+        """Logic for Self-Correcting Code Agent."""
         logger.info(f"[BRAIN_REFLECTION] Analyzing error for: {command}")
         prompt = (
             f"The following command failed: '{command}'\n"
             f"Error message: '{error}'\n"
-            "Analyze the error and provide a corrected command or a brief explanation of how to fix it."
+            "Analyze the error and provide a brief explanation or fix."
         )
-        return self.generate_response(prompt)
+        return await self.generate_response(prompt)
+
