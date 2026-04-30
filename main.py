@@ -125,26 +125,47 @@ class Jarvis:
         return handled
 
     def handle_command(self, command: str) -> bool:
-        """Process a single voice command."""
+        """Process a single voice command with self-correction logic."""
         cont = True
         if not command:
-            pass
-        elif self._handle_social_commands(command):
-            pass
-        elif "sleep" in command:
-            self.audio.speak("Going to sleep. Say my name to wake me up.")
-            cont = False
-        elif "terminate" in command:
-            self.audio.speak("Shutting down. Have a great day!")
-            self.is_running = False
-            cont = False
-        else:
-            handled_sys, cont_sys = self._handle_system_commands(command)
-            if handled_sys:
-                cont = cont_sys
-            elif not (self._handle_media_commands(command) or self._handle_web_commands(command)):
-                response = self.brain.generate_response(command)
-                self.audio.speak(response)
+            return True
+
+        # Small Change: Command Aliases
+        aliases = {
+            "ss": "take screenshot",
+            "calc": "open calculator",
+            "notes": "open notepad",
+            "speed": "test internet speed"
+        }
+        for alias, target in aliases.items():
+            if command.lower() == alias:
+                command = target
+                logger.info(f"[COMMAND_ALIAS] Resolved '{alias}' to '{target}'")
+
+        try:
+            if self._handle_social_commands(command):
+                pass
+            elif "sleep" in command:
+                self.audio.speak("Going to sleep. Say my name to wake me up.")
+                cont = False
+            elif "terminate" in command:
+                self.audio.speak("Shutting down. Have a great day!")
+                self.is_running = False
+                cont = False
+            else:
+                handled_sys, cont_sys = self._handle_system_commands(command)
+                if handled_sys:
+                    cont = cont_sys
+                elif not (self._handle_media_commands(command) or self._handle_web_commands(command)):
+                    response = self.brain.generate_response(command)
+                    self.audio.speak(response)
+        except Exception as e:
+            # Pillar 5.1: Self-Correcting Code Agent Logic
+            logger.error(f"[COMMAND_FAILURE] Error: {e}")
+            self.audio.speak("Something went wrong, sir. Let me analyze the issue.")
+            analysis = self.brain.analyze_error(command, str(e))
+            self.audio.speak(analysis)
+            
         return cont
 
     def run(self) -> None:

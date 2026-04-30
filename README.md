@@ -44,7 +44,18 @@ python main.py
 - `main.py`: Entry point and command controller.
 - `jarvis/`: Core package containing audio, brain, and logging logic.
 - `jarvis/commands/`: Specific modules for system, media, and web features.
+- `frontend/`: Next.js-based "AI Studio" dashboard for system monitoring and interaction.
 - `.agents/`: Documentation and internal engineering standards.
+
+---
+
+## 🎨 Interface
+Jarvis now features a professional **AI Studio** dashboard:
+- **Assistant**: Real-time voice interaction and chat history.
+- **Tasks**: Background process monitoring and system health metrics.
+- **Settings**: Voice personality and security configurations.
+- **Help**: Comprehensive command library and FAQ.
+
 
 ---
 

@@ -33,3 +33,17 @@ def setup_logger(logger_name: str = "jarvis") -> logging.Logger:
 
 # Create a default logger for the package
 logger = setup_logger()
+
+import functools
+import time
+
+def time_function(func):
+    """Decorator to log the execution time of a function."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        logger.info(f"[PERF] {func.__name__} took {duration:.2f}s")
+        return result
+    return wrapper
