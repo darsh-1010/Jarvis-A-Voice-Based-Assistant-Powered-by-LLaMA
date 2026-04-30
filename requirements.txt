@@ -1,4 +1,4 @@
-speech_recognition
+SpeechRecognition
 pyttsx3
 opencv-python
 pyautogui
@@ -7,3 +7,17 @@ beautifulsoup4
 langchain
 speedtest-cli
 pywhatkit
+langchain-ollama
+langchain-community
+langchain-core
+python-dotenv
+pynput
+pylint
+google-generativeai
+openai
+fastapi
+uvicorn
+psutil
+pydantic
+pydantic-settings
+python-multipart

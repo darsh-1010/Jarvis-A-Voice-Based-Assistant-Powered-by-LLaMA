@@ -1,0 +1,30 @@
+[MASTER]
+ignore=CVS
+
+[MESSAGES CONTROL]
+# Disable some common warnings that might be too strict for this project
+# but keep the core ones.
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    invalid-name,
+    too-few-public-methods,
+    broad-except,
+    import-error,
+    logging-fstring-interpolation
+
+[FORMAT]
+max-line-length=120
+
+[DESIGN]
+max-args=6
+max-locals=15
+max-returns=6
+max-branches=12
+max-statements=50
+max-parents=7
+max-attributes=10
+
+[REPORTS]
+output-format=text
