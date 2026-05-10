@@ -1,11 +1,15 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
+"""Manages speech recognition and text-to-speech asynchronously."""
 import asyncio
-import speech_recognition as sr
-import pyttsx3
 import logging
+
+import pyttsx3
+import speech_recognition as sr
+
 from jarvis.config import config
-from jarvis.logger import logger, log_action
+from jarvis.logger import log_action
+
 
 class AudioManager:
     """Manages speech recognition and text-to-speech asynchronously."""
@@ -20,31 +24,46 @@ class AudioManager:
             "Starting up my voice and hearing modules."
         )
 
-    def _get_engine(self):
-        """Initialize engine in a thread-safe manner if needed."""
+    def _get_engine(self) -> pyttsx3.Engine:
+        """
+        Initialize engine in a thread-safe manner if needed.
+
+        Returns:
+            pyttsx3.Engine: The initialized TTS engine.
+        """
         engine = pyttsx3.init()
         voices = engine.getProperty('voices')
         vid = config.voice_id
         rate = config.speech_rate
-        
+
         if voices:
             target_vid = vid if len(voices) > vid else 0
             engine.setProperty('voice', voices[target_vid].id)
-            
+
         engine.setProperty('rate', rate)
         engine.setProperty('volume', config.speech_volume)
         return engine
 
     async def speak(self, text: str) -> None:
-        """Convert text to speech without blocking the event loop."""
+        """
+        Convert text to speech without blocking the event loop.
+
+        Args:
+            text: The text string to convert to speech.
+        """
         if not text:
             return
 
         log_action("AUDIO_SPEAK", f"TTS start (chars={len(text)})", "I'm speaking my response to you.")
         await asyncio.to_thread(self._run_tts, text)
 
-    def _run_tts(self, text: str):
-        """Synchronous TTS runner to be executed in a thread."""
+    def _run_tts(self, text: str) -> None:
+        """
+        Synchronous TTS runner to be executed in a thread.
+
+        Args:
+            text: The text string to speak.
+        """
         try:
             engine = self._get_engine()
             engine.say(text)
@@ -52,14 +71,35 @@ class AudioManager:
             # Clean up engine to prevent COM errors on Windows
             del engine
         except Exception as exc:
-            log_action("AUDIO_TTS_FAIL", f"TTS Error: {exc}", "I had some trouble speaking.", level=logging.ERROR)
+            log_action(
+                "AUDIO_TTS_FAIL",
+                f"TTS Error: {exc}",
+                "I had some trouble speaking.",
+                level=logging.ERROR
+            )
 
     async def listen(self, prompt: str = "Listening...") -> str:
-        """Listen for audio input asynchronously."""
+        """
+        Listen for audio input asynchronously.
+
+        Args:
+            prompt: Text to display in logs while listening.
+
+        Returns:
+            str: The recognized text command.
+        """
         return await asyncio.to_thread(self._run_stt, prompt)
 
     def _run_stt(self, prompt: str) -> str:
-        """Synchronous STT runner to be executed in a thread."""
+        """
+        Synchronous STT runner to be executed in a thread.
+
+        Args:
+            prompt: Log message for listening status.
+
+        Returns:
+            str: Recognized text.
+        """
         try:
             with sr.Microphone() as source:
                 if prompt:
@@ -78,9 +118,19 @@ class AudioManager:
                     # Don't log action for unknown value to avoid spamming
                     pass
                 except Exception as exc:
-                    log_action("AUDIO_STT_FAIL", f"STT Error: {exc}", "I couldn't quite catch that.", level=logging.ERROR)
+                    log_action(
+                        "AUDIO_STT_FAIL",
+                        f"STT Error: {exc}",
+                        "I couldn't quite catch that.",
+                        level=logging.ERROR
+                    )
         except (OSError, Exception) as exc:
-            log_action("AUDIO_HARDWARE", f"Hardware error: {exc}", "I can't find a microphone to listen with.", level=logging.WARNING)
+            log_action(
+                "AUDIO_HARDWARE",
+                f"Hardware error: {exc}",
+                "I can't find a microphone to listen with.",
+                level=logging.WARNING
+            )
             return ""
 
         return ""

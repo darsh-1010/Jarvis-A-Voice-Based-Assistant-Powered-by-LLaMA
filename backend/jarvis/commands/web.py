@@ -1,11 +1,10 @@
 """Web-related commands for Jarvis (Search, News, Speedtest)."""
+import logging
 import webbrowser
-import json
 import requests
 import speedtest
-import logging
 from jarvis.config import NEWS_API_KEY
-from jarvis.logger import logger, log_action
+from jarvis.logger import log_action
 
 def search_google(query: str) -> None:
     """Search Google for a query."""
@@ -46,27 +45,37 @@ def fetch_latest_news(category: str = "general") -> list:
         list: List of news titles.
     """
     log_action("WEB_NEWS", f"Category: {category}", f"I'm looking up the latest {category} news.")
-    
+
     base_url = "https://newsapi.org/v2/top-headlines"
     params = {
         "category": category,
         "apiKey": NEWS_API_KEY,
         "language": "en"
     }
-    
+
     if category == "technology":
         params["q"] = "tesla"
-    
+
     try:
         response = requests.get(base_url, params=params, timeout=10)
         data = response.json()
-        
+
         if data.get("status") != "ok":
-            log_action("WEB_NEWS_FAIL", f"NewsAPI Error: {data.get('message')}", "I couldn't fetch the latest news.", level=logging.ERROR)
+            log_action(
+                "WEB_NEWS_FAIL",
+                f"NewsAPI Error: {data.get('message')}",
+                "I couldn't fetch the latest news.",
+                level=logging.ERROR
+            )
             return []
-            
+
         articles = data.get("articles", [])
         return [art["title"] for art in articles[:5]]
     except Exception as exc:
-        log_action("WEB_NEWS_FATAL", f"Exception: {exc}", "A critical error occurred while fetching news.", level=logging.ERROR)
+        log_action(
+            "WEB_NEWS_FATAL",
+            f"Exception: {exc}",
+            "A critical error occurred while fetching news.",
+            level=logging.ERROR
+        )
         return []

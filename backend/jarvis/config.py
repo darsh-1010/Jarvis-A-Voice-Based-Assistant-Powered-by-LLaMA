@@ -49,17 +49,21 @@ class Settings(BaseSettings):
 # Global config instance
 config = Settings()
 
-# Legacy compatibility exports
+# ──────────────────────────────────────────────
+# Legacy Compatibility Exports
+# ──────────────────────────────────────────────
 JARVIS_PERSONA = config.jarvis_persona
 OLLAMA_MODEL = config.ollama_model
 GEMINI_MODEL = config.gemini_model
 OPENROUTER_MODEL = config.openrouter_model
 GEMINI_API_KEY = config.gemini_api_key
 OPENROUTER_API_KEY = config.openrouter_api_key
+NEWS_API_KEY = config.news_api_key
 REDIS_HOST = config.redis_host
 REDIS_PORT = config.redis_port
 REDIS_DB = config.redis_db
 USE_REDIS = config.use_redis
 SPEECH_VOLUME = config.speech_volume
 WAKE_WORD = config.wake_word
+SOURCE_FILE_PATH = config.source_file_path
 

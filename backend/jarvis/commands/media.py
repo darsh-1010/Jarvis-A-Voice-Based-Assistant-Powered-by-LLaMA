@@ -1,9 +1,11 @@
-"""Media-related commands for Jarvis (Camera, Spotify, YouTube)."""
-import time
+import logging
 import random
+import time
 import webbrowser
+
 import cv2
-from jarvis.logger import logger, log_action
+
+from jarvis.logger import log_action
 
 def open_spotify(song_name: str) -> None:
     """
@@ -12,7 +14,11 @@ def open_spotify(song_name: str) -> None:
     Args:
         song_name: Name of the song to search for.
     """
-    log_action("MEDIA_SPOTIFY", f"Search: {song_name}", f"I'm searching Spotify for '{song_name}'.")
+    log_action(
+        "MEDIA_SPOTIFY",
+        f"Search: {song_name}",
+        f"I'm searching Spotify for '{song_name}'."
+    )
     search_url = f"https://open.spotify.com/search/{song_name}"
     webbrowser.open(search_url)
 
@@ -24,7 +30,11 @@ def play_random_music() -> None:
         "https://www.youtube.com/watch?v=DCkRJ8BDRQU"
     ]
     song = random.choice(songs)
-    log_action("MEDIA_YOUTUBE", "Random selection from favorites", "I'm playing a random favorite song for you.")
+    log_action(
+        "MEDIA_YOUTUBE",
+        "Random selection from favorites",
+        "I'm playing a random favorite song for you."
+    )
     webbrowser.open(song)
 
 class CameraManager:
@@ -39,7 +49,11 @@ class CameraManager:
         """Open the camera live feed."""
         self.camera = cv2.VideoCapture(0)
         self.is_open = True
-        log_action("MEDIA_CAMERA", "CV2 VideoCapture(0) active", "I'm opening your camera live feed.")
+        log_action(
+            "MEDIA_CAMERA",
+            "CV2 VideoCapture(0) active",
+            "I'm opening your camera live feed."
+        )
         
         while self.is_open:
             ret, frame = self.camera.read()
@@ -59,7 +73,11 @@ class CameraManager:
             self.camera.release()
             cv2.destroyAllWindows()
             self.is_open = False
-            log_action("MEDIA_CAMERA", "CV2 release and cleanup", "I've closed the camera live feed.")
+            log_action(
+                "MEDIA_CAMERA",
+                "CV2 release and cleanup",
+                "I've closed the camera live feed."
+            )
 
     def take_photo(self) -> str:
         """
@@ -68,7 +86,11 @@ class CameraManager:
         Returns:
             str: Path to the saved photo.
         """
-        log_action("MEDIA_CAMERA", "CV2 Capture (5s delay)", "I'm taking a photo for you in 5 seconds.")
+        log_action(
+            "MEDIA_CAMERA",
+            "CV2 Capture (5s delay)",
+            "I'm taking a photo for you in 5 seconds."
+        )
         # In a real assistant, the Speak() would happen before this
         time.sleep(5)
         
@@ -77,6 +99,10 @@ class CameraManager:
         file_path = "photo.jpg"
         if ret:
             cv2.imwrite(file_path, frame)
-            log_action("MEDIA_CAMERA", f"Saved: {file_path}", "I've saved the photo to your project folder.")
+            log_action(
+                "MEDIA_CAMERA",
+                f"Saved: {file_path}",
+                "I've saved the photo to your project folder."
+            )
         cap.release()
         return file_path

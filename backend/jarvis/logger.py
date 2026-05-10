@@ -1,8 +1,11 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Standardized logging configuration for Jarvis."""
+import functools
 import logging
 import sys
+import time
+
 
 def setup_logger(logger_name: str = "jarvis") -> logging.Logger:
     """
@@ -33,8 +36,10 @@ def setup_logger(logger_name: str = "jarvis") -> logging.Logger:
 
     return instance
 
+
 # Create a default logger for the package
 logger = setup_logger()
+
 
 def log_action(action: str, tech: str, simple: str, level: int = logging.INFO) -> None:
     """
@@ -49,11 +54,17 @@ def log_action(action: str, tech: str, simple: str, level: int = logging.INFO) -
     message = f"Tech: {tech} | Simple: {simple}"
     logger.log(level, f"[{action}] {message}")
 
-import functools
-import time
 
 def time_function(func):
-    """Decorator to log the execution time of a function."""
+    """
+    Decorator to log the execution time of a function.
+
+    Args:
+        func: The function to be timed.
+
+    Returns:
+        Callable: The wrapped function.
+    """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.time()
