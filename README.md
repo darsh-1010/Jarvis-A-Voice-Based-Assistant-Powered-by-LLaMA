@@ -2,7 +2,7 @@
 
 [![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen)](#)
 [![Tech Stack](https://img.shields.io/badge/Stack-Next.js%20%7C%20FastAPI%20%7C%20Ollama-blue)](#)
-[![License](https://img.shields.io/badge/License-MIT-orange)](#)
+[![License](https://img.shields.io/badge/License-BUSL--1.1-blue)](#)
 
 **Jarvis** is a state-of-the-art, modular voice assistant that bridges the gap between local privacy and cloud-scale intelligence. Featuring a stunning **"Zenith" Aesthetic HUD**, Jarvis offers a proactive, memory-enabled interaction loop designed for the modern desktop.
 
@@ -128,8 +128,18 @@ We welcome contributions! Please see our [DOCUMENTATION.md](./DOCUMENTATION.md) 
 
 ---
 
-## 📜 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## 📜 License Overview
+This repository is source-available under a **Business Source License (BSL 1.1)**. 
+
+### 🚫 Commercial Usage & AI Training
+Commercial usage, commercial AI training, hosted services, and proprietary deployments require a separate commercial agreement. **Unauthorized commercial AI training is strictly prohibited.**
+
+### 💼 Enterprise & Custom Licensing
+For commercial usage, closed-source deployments, or AI training rights (LLMs, embeddings, fine-tuning), please contact the owner.
+
+**Contact:** <YOUR_EMAIL>
+
+See [LICENSE](./LICENSE), [COMMERCIAL_LICENSE.md](./COMMERCIAL_LICENSE.md), and [AI_TRAINING_POLICY.md](./AI_TRAINING_POLICY.md) for full details.
 
 Developed with ❤️ by **Darsh** and the **Antigravity AI** team.
 

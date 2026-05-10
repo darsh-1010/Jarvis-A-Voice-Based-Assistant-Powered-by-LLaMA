@@ -1,6 +1,7 @@
 # Stage 1: Build
 FROM node:18-alpine AS builder
 WORKDIR /app
+LABEL license="BUSL-1.1"
 COPY package*.json ./
 RUN npm install
 COPY . .
@@ -9,6 +10,7 @@ RUN npm run build
 # Stage 2: Run
 FROM node:18-alpine AS runner
 WORKDIR /app
+LABEL license="BUSL-1.1"
 COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next

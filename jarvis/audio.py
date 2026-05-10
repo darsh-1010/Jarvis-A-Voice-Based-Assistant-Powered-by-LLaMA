@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Darsh Shah
+# Licensed under the Business Source License 1.1
 import asyncio
 import speech_recognition as sr
 import pyttsx3

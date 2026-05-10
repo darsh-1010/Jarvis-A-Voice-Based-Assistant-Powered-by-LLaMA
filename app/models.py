@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Darsh Shah
+# Licensed under the Business Source License 1.1
 """Pydantic models for the Jarvis API."""
 from typing import List, Optional
 from pydantic import BaseModel

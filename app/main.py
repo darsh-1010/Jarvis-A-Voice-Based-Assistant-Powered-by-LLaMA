@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Darsh Shah
+# Licensed under the Business Source License 1.1
 """FastAPI backend for Jarvis v3 (Async Zenith)."""
 import psutil
 from fastapi import FastAPI, HTTPException

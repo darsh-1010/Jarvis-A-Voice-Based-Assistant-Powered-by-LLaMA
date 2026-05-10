@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Darsh Shah
+# Licensed under the Business Source License 1.1
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 

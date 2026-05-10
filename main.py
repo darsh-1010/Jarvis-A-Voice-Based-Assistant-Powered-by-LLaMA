@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Darsh Shah
+# Licensed under the Business Source License 1.1
 """Main entry point for Jarvis AI Assistant (V3.0 Async)."""
 import asyncio
 import datetime

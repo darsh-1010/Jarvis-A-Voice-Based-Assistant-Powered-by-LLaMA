@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-10]
+### Security & Compliance
+- Migrated repository from MIT License to **Business Source License (BSL 1.1)**.
+- Implemented strict prohibitions on unauthorized commercial AI/ML training.
+- Added `COMMERCIAL_LICENSE.md`, `AI_TRAINING_POLICY.md`, and `NOTICE` files.
+- Updated all metadata and source headers to reflect new licensing structure.
+
 ## [2026-04-28]
 ### Added
 - New **AI Studio** minimalist frontend design.
