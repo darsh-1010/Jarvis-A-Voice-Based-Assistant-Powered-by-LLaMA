@@ -4,6 +4,11 @@
 import asyncio
 import datetime
 import sys
+import os
+
+# Ensure the 'backend' directory is in the path so we can import 'jarvis'
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from jarvis.audio import AudioManager
 from jarvis.brain import BrainManager
 from jarvis.config import config

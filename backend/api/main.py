@@ -2,9 +2,15 @@
 # Licensed under the Business Source License 1.1
 """FastAPI backend for Jarvis v3 (Async Zenith)."""
 import psutil
+import sys
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.models import ChatRequest, ChatResponse, SystemStats, SettingsUpdate
+
+# Ensure the 'backend' directory is in the path so we can import 'jarvis' and 'api'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from api.models import ChatRequest, ChatResponse, SystemStats, SettingsUpdate
 from jarvis.brain import BrainManager
 from jarvis.commands.registry import registry
 from jarvis.config import config
