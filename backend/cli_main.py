@@ -6,27 +6,115 @@ import datetime
 import logging
 import os
 import sys
+from typing import Any
 
-# Ensure the 'backend' directory is in the path so we can import 'jarvis'
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Path injection must precede jarvis imports; kept at module level intentionally.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from jarvis.audio import AudioManager
 from jarvis.brain import BrainManager
-from jarvis.commands import system, media, web
+import jarvis.commands.system  # noqa: F401 — side-effect: registers system tools
+import jarvis.commands.media   # noqa: F401 — side-effect: registers media tools
+import jarvis.commands.web     # noqa: F401 — side-effect: registers web tools
 from jarvis.commands.registry import registry
 from jarvis.config import config
+from jarvis.intent import IntentRouter
 from jarvis.logger import log_action
 
+
+# ──────────────────────────────────────────────
+# Result Enrichment Helpers
+# ──────────────────────────────────────────────
+
+# Tools whose raw output should be summarised by the LLM before speaking.
+# All other tools receive a simple "Done, sir." confirmation.
+_ENRICHABLE_TOOLS = {"fetch_latest_news", "test_internet_speed"}
+
+
+async def _enrich_news(headlines: list, brain: BrainManager) -> str:
+    """
+    Summarise raw news headlines into a spoken-friendly briefing via LLM.
+
+    Args:
+        headlines: List of news title strings from NewsAPI.
+        brain:     Active BrainManager used to call the LLM.
+
+    Returns:
+        A concise spoken summary of the headlines.
+    """
+    if not headlines:
+        return "I couldn't find any news headlines right now, sir."
+
+    bullet_list = "\n".join(f"- {h}" for h in headlines)
+    prompt = (
+        "You are a news briefing assistant. Summarise the following headlines into "
+        "a natural, spoken 2-3 sentence briefing. Be concise and use 'sir' at the end.\n\n"
+        f"Headlines:\n{bullet_list}"
+    )
+    return await brain.generate_response(prompt)
+
+
+async def _enrich_speed(speed_str: str, brain: BrainManager) -> str:
+    """
+    Convert a raw speed-test result string into a conversational spoken phrase.
+
+    Args:
+        speed_str: Raw result like "Download: 42.10 Mbps | Upload: 11.30 Mbps".
+        brain:     Active BrainManager used to call the LLM.
+
+    Returns:
+        A friendly spoken description of the speed.
+    """
+    if not speed_str:
+        return "I was unable to measure your internet speed, sir."
+
+    prompt = (
+        "Convert this internet speed test result into one friendly spoken sentence "
+        f"suitable for a voice assistant. End with 'sir'.\nResult: {speed_str}"
+    )
+    return await brain.generate_response(prompt)
+
+
+async def _enrich_result(tool_name: str, result: Any, brain: BrainManager) -> str:
+    """
+    Post-process a tool's raw output into a spoken-friendly response.
+
+    For enrichable tools the LLM generates a natural-language summary.
+    For all other tools a simple confirmation is returned.
+
+    Args:
+        tool_name: Name of the tool that was invoked.
+        result:    Raw return value from the tool function.
+        brain:     Active BrainManager for LLM enrichment calls.
+
+    Returns:
+        A string ready to be passed directly to AudioManager.speak().
+    """
+    if tool_name not in _ENRICHABLE_TOOLS:
+        return "Done, sir."
+
+    if tool_name == "fetch_latest_news":
+        return await _enrich_news(result if isinstance(result, list) else [], brain)
+
+    if tool_name == "test_internet_speed":
+        return await _enrich_speed(result if isinstance(result, str) else "", brain)
+
+    return "Done, sir."
+
+
+# ──────────────────────────────────────────────
+# Jarvis Controller
+# ──────────────────────────────────────────────
 
 class Jarvis:
     """The Jarvis AI Assistant controller (Async)."""
 
     def __init__(self):
-        """Initialize all managers."""
+        """Initialize all managers and attach the intent router."""
         self.audio = AudioManager()
         self.brain = BrainManager()
+        self.intent_router = IntentRouter(self.brain)
         self.is_running = True
-        self._wake_lock = False
 
     async def greet(self) -> None:
         """Greet the user based on the time of day."""
@@ -42,13 +130,19 @@ class Jarvis:
 
     async def handle_command(self, command: str) -> bool:
         """
-        Process a single voice command using registry tools or the AI brain.
+        Process a single voice command using AI intent routing or the brain.
+
+        The pipeline is:
+          1. Termination / sleep guard (checked before any LLM call).
+          2. IntentRouter classifies the command → tool + params via LLM.
+          3. If a tool is matched, invoke it and enrich the output for speech.
+          4. Otherwise, fall through to the conversational BrainManager.
 
         Args:
-            command: The user's recognized voice command.
+            command: The user's recognised voice command.
 
         Returns:
-            bool: True if the assistant should keep running, False to terminate/sleep.
+            bool: True to keep running, False to terminate/sleep.
         """
         if not command:
             return True
@@ -59,25 +153,8 @@ class Jarvis:
             f"I'm processing your request: '{command}'"
         )
 
-        # Small Change: Command Aliases
-        aliases = {
-            "ss": "take_screenshot",
-            "calc": "open_app calculator",
-            "notes": "open_app notepad",
-            "speed": "test_internet_speed"
-        }
-
-        for alias, target in aliases.items():
-            if command.lower() == alias:
-                command = target
-                log_action(
-                    "COMMAND_ALIAS",
-                    f"Resolved '{alias}' -> '{target}'",
-                    f"I've recognized '{alias}' as a shortcut for '{target}'."
-                )
-
         try:
-            # 1. Check for Termination/Sleep
+            # 1. Termination / Sleep — always checked first, before any LLM cost
             if "terminate" in command:
                 await self.audio.speak("Shutting down. Have a great day!")
                 self.is_running = False
@@ -86,45 +163,35 @@ class Jarvis:
                 await self.audio.speak("Going to sleep. Say my name to wake me up.")
                 return False
 
-            # 2. Try Registry Tools (Hardcoded Intent Matching for now)
-            # In Phase 3, the Brain will handle this via Tool-Use/Function-Calling
+            # 2. AI intent classification — LLM picks the best tool and extracts params
             tools = registry.list_tools()
-            for tool in tools:
-                if tool["name"].replace("_", " ") in command:
-                    log_action(
-                        "COMMAND_TOOL",
-                        f"Matched: {tool['name']}",
-                        "I've found a built-in tool to handle your request."
-                    )
-                    # Simple param extraction (very basic for now)
-                    if tool["name"] == "open_app":
-                        app = command.replace("open app", "").strip()
-                        await registry.invoke("open_app", app_name=app)
-                        await self.audio.speak(f"Opening {app}, sir.")
-                    else:
-                        await registry.invoke(tool["name"])
-                        await self.audio.speak("Done, sir.")
-                    return True
+            intent = await self.intent_router.classify(command, tools)
 
-            # 3. Fallback to AI Brain
-            response = await self.brain.generate_response(command)
-            await self.audio.speak(response)
+            if intent.tool_name:
+                # 3. Tool matched — invoke it, then enrich raw output for speech
+                raw_result = await registry.invoke(intent.tool_name, **intent.params)
+                spoken = await _enrich_result(intent.tool_name, raw_result, self.brain)
+                await self.audio.speak(spoken)
+            else:
+                # 4. No tool matched — route to conversational brain as fallback
+                response = await self.brain.generate_response(command)
+                await self.audio.speak(response)
 
         except Exception as exc:
             log_action(
                 "COMMAND_FAIL",
                 f"Error: {exc}",
-                "Something went wrong, sir. I'll analyze the issue.",
+                "Something went wrong, sir. I'll analyse the issue.",
                 level=logging.ERROR
             )
-            await self.audio.speak("Something went wrong, sir. Let me analyze the issue.")
+            await self.audio.speak("Something went wrong, sir. Let me analyse the issue.")
             analysis = await self.brain.analyze_error(command, str(exc))
             await self.audio.speak(analysis)
 
         return True
 
     async def run(self) -> None:
-        """Main loop of the assistant."""
+        """Main loop: wake-word detection → active listening → command dispatch."""
         log_action(
             "SYSTEM_START",
             "Jarvis V3.0 async loop active.",
@@ -147,6 +214,10 @@ class Jarvis:
         )
 
 
+# ──────────────────────────────────────────────
+# Entry Point
+# ──────────────────────────────────────────────
+
 async def main() -> None:
     """Entry point function."""
     assistant = Jarvis()
@@ -165,4 +236,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

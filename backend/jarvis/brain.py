@@ -9,13 +9,12 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Any
 
 import google.generativeai as genai
-import httpx
 import redis
 import tiktoken
 from openai import AsyncOpenAI
 
 from jarvis.config import config
-from jarvis.logger import logger, log_action
+from jarvis.logger import log_action
 
 
 class BaseProvider(ABC):
@@ -174,6 +173,19 @@ class BrainManager:
             )
             return None
 
+    async def get_active_provider(self) -> "BaseProvider | None":
+        """
+        Return the first available provider from the fallback chain.
+
+        Used by IntentRouter to reuse provider selection without duplicating
+        the chain-of-responsibility logic that lives here.
+        """
+        for name in self.chain:
+            provider = await self._get_provider(name)
+            if provider:
+                return provider
+        return None
+
     async def generate_response(self, question: str) -> str:
         """Orchestrate response generation through the provider chain."""
         if not question:
@@ -241,4 +253,3 @@ class BrainManager:
             "Analyze the error and provide a brief explanation or fix."
         )
         return await self.generate_response(prompt)
-

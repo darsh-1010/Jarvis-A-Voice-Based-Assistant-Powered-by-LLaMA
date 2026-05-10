@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     openrouter_model: str = "google/gemma-2-9b-it:free"
     
     # API Keys
-    news_api_key: Optional[str] = "17981b970a33437ab4f162eb13ac13a1"
+    news_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
     

@@ -2,7 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-10] — AI Intent Routing
+### Added
+- **`jarvis/intent.py`**: New `IntentRouter` class — uses the active LLM provider to classify any
+  natural-language command into a registered tool + extracted parameters, or returns `null` for
+  conversational fallback. Provider-agnostic (works with Gemini, OpenRouter, and Ollama).
+- **Result Enrichment** (`cli_main.py`): `_enrich_result()` pipeline post-processes tool outputs
+  via the LLM — news headlines are summarised into a spoken 2-3 sentence briefing; speed-test
+  results are converted into a friendly spoken sentence.
+- **Full Tool Registry** (`web.py`, `media.py`): All web and media functions now have
+  `@registry.register` decorators, making them discoverable by the IntentRouter.
+- `BrainManager.get_active_provider()`: Exposes the provider chain so IntentRouter can reuse it
+  without duplicating fallback logic.
+
+### Changed
+- Replaced the hardcoded string-matching command dispatcher in `cli_main.py` with the
+  AI-powered `IntentRouter` pipeline.
+- `config.py`: Removed hardcoded `NEWS_API_KEY` default — must now be set via `.env`.
+- `pylintrc`: Added suppression for pre-existing architectural patterns
+  (`import-outside-toplevel`, `no-member` cv2 false positives, `wrong-import-position`,
+  `unused-import` for side-effect-only registrations).
+
 ## [2026-05-10]
+
 ### Security & Compliance
 - Migrated repository from MIT License to **Business Source License (BSL 1.1)**.
 - Implemented strict prohibitions on unauthorized commercial AI/ML training.
