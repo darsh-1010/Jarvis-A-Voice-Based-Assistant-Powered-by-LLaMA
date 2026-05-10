@@ -2,7 +2,9 @@
 # Licensed under the Business Source License 1.1
 """Tool registration system for Jarvis."""
 import functools
+import logging
 from typing import Any, Callable, Dict, Optional, List
+from jarvis.logger import log_action
 
 class ToolRegistry:
     """Registry to manage and dispatch system tools."""
@@ -18,6 +20,7 @@ class ToolRegistry:
                 "description": description,
                 "params": func.__annotations__
             }
+            log_action("TOOL_REG", f"Tool registered: {name}", f"Initialized {name} capability.", level=logging.DEBUG)
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
@@ -46,6 +49,7 @@ class ToolRegistry:
             raise ValueError(f"Tool '{name}' not found.")
         
         import inspect
+        log_action("TOOL_INVOKE", f"Executing: {name} | Params: {kwargs}", f"I'm running the {name.replace('_', ' ')} command.")
         if inspect.iscoroutinefunction(tool):
             return await tool(*args, **kwargs)
         else:

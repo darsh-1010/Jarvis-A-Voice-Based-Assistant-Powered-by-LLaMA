@@ -36,6 +36,19 @@ def setup_logger(logger_name: str = "jarvis") -> logging.Logger:
 # Create a default logger for the package
 logger = setup_logger()
 
+def log_action(action: str, tech: str, simple: str, level: int = logging.INFO) -> None:
+    """
+    Log an action with both technical and simple aspects.
+
+    Args:
+        action: The name of the action being performed
+        tech: Technical details for developers
+        simple: Simplified explanation for users
+        level: Logging level (default: INFO)
+    """
+    message = f"Tech: {tech} | Simple: {simple}"
+    logger.log(level, f"[{action}] {message}")
+
 import functools
 import time
 
@@ -46,6 +59,11 @@ def time_function(func):
         start = time.time()
         result = func(*args, **kwargs)
         duration = time.time() - start
-        logger.info(f"[PERF] {func.__name__} took {duration:.2f}s")
+        log_action(
+            "PERFORMANCE",
+            f"Function {func.__name__} executed in {duration:.2f}s",
+            f"Finished {func.__name__.replace('_', ' ')} logic.",
+            level=logging.DEBUG
+        )
         return result
     return wrapper

@@ -3,18 +3,19 @@ import webbrowser
 import json
 import requests
 import speedtest
+import logging
 from jarvis.config import NEWS_API_KEY
-from jarvis.logger import logger
+from jarvis.logger import logger, log_action
 
 def search_google(query: str) -> None:
     """Search Google for a query."""
-    logger.info(f"[WEB_SEARCH] Site: Google | Query: {query}")
+    log_action("WEB_SEARCH", f"Google | Query: {query}", f"I'm opening Google to search for '{query}'.")
     url = f"https://www.google.com/search?q={query}"
     webbrowser.open(url)
 
 def search_youtube(query: str) -> None:
     """Search YouTube for a query."""
-    logger.info(f"[WEB_SEARCH] Site: YouTube | Query: {query}")
+    log_action("WEB_SEARCH", f"YouTube | Query: {query}", f"I'm searching YouTube for '{query}'.")
     url = f"https://www.youtube.com/results?search_query={query}"
     webbrowser.open(url)
 
@@ -25,13 +26,13 @@ def test_internet_speed() -> str:
     Returns:
         str: Summary of download and upload speeds.
     """
-    logger.info("[WEB_SPEEDTEST] Action: Starting test")
+    log_action("WEB_SPEEDTEST", "Initializing speedtest-cli", "I'm measuring your current internet speeds.")
     st = speedtest.Speedtest()
     download_speed = st.download() / (10**6)  # Convert to Mbps
     upload_speed = st.upload() / (10**6)      # Convert to Mbps
     result = (f"Download: {download_speed:.2f} Mbps | "
               f"Upload: {upload_speed:.2f} Mbps")
-    logger.info(f"[WEB_SPEEDTEST] Result: {result}")
+    log_action("WEB_SPEEDTEST_RES", f"Speeds: {result}", "I've finished measuring your internet speed.")
     return result
 
 def fetch_latest_news(category: str = "general") -> list:
@@ -44,7 +45,7 @@ def fetch_latest_news(category: str = "general") -> list:
     Returns:
         list: List of news titles.
     """
-    logger.info(f"[WEB_NEWS] Action: Fetching {category} news")
+    log_action("WEB_NEWS", f"Category: {category}", f"I'm looking up the latest {category} news.")
     
     base_url = "https://newsapi.org/v2/top-headlines"
     params = {
@@ -61,11 +62,11 @@ def fetch_latest_news(category: str = "general") -> list:
         data = response.json()
         
         if data.get("status") != "ok":
-            logger.error(f"[WEB_NEWS_ERROR] Status: {data.get('status')} | Message: {data.get('message')}")
+            log_action("WEB_NEWS_FAIL", f"NewsAPI Error: {data.get('message')}", "I couldn't fetch the latest news.", level=logging.ERROR)
             return []
             
         articles = data.get("articles", [])
         return [art["title"] for art in articles[:5]]
     except Exception as exc:
-        logger.error(f"[WEB_NEWS_FATAL] Message: {exc}")
+        log_action("WEB_NEWS_FATAL", f"Exception: {exc}", "A critical error occurred while fetching news.", level=logging.ERROR)
         return []

@@ -3,8 +3,9 @@
 import asyncio
 import speech_recognition as sr
 import pyttsx3
+import logging
 from jarvis.config import config
-from jarvis.logger import logger
+from jarvis.logger import logger, log_action
 
 class AudioManager:
     """Manages speech recognition and text-to-speech asynchronously."""
@@ -13,7 +14,11 @@ class AudioManager:
         """Initialize the speech engine and recognizer."""
         self.recognizer = sr.Recognizer()
         self._loop = asyncio.get_event_loop()
-        logger.info("[AUDIO_INIT] Manager initialized.")
+        log_action(
+            "AUDIO_INIT",
+            "AudioManager initialized with Google Speech Recognition.",
+            "Starting up my voice and hearing modules."
+        )
 
     def _get_engine(self):
         """Initialize engine in a thread-safe manner if needed."""
@@ -35,7 +40,7 @@ class AudioManager:
         if not text:
             return
 
-        logger.info(f"[SPEAK] Message: {text}")
+        log_action("AUDIO_SPEAK", f"TTS start (chars={len(text)})", "I'm speaking my response to you.")
         await asyncio.to_thread(self._run_tts, text)
 
     def _run_tts(self, text: str):
@@ -47,7 +52,7 @@ class AudioManager:
             # Clean up engine to prevent COM errors on Windows
             del engine
         except Exception as exc:
-            logger.error(f"[TTS_ERROR] Message: {exc}")
+            log_action("AUDIO_TTS_FAIL", f"TTS Error: {exc}", "I had some trouble speaking.", level=logging.ERROR)
 
     async def listen(self, prompt: str = "Listening...") -> str:
         """Listen for audio input asynchronously."""
@@ -58,23 +63,24 @@ class AudioManager:
         try:
             with sr.Microphone() as source:
                 if prompt:
-                    logger.info(f"[LISTEN] Status: {prompt}")
+                    log_action("AUDIO_LISTEN", f"STT Active: {prompt}", "I'm listening for your command.")
 
                 # Adjust for ambient noise
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 try:
                     audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                     command = self.recognizer.recognize_google(audio)
-                    logger.info(f"[RECOGNIZED] Text: {command}")
+                    log_action("AUDIO_RECOGNIZED", f"Text: '{command}'", f"I heard you say: '{command}'")
                     return command.lower()
                 except sr.WaitTimeoutError:
                     return ""
                 except sr.UnknownValueError:
-                    logger.debug("[STT_RETRY] Message: Could not understand audio")
+                    # Don't log action for unknown value to avoid spamming
+                    pass
                 except Exception as exc:
-                    logger.error(f"[STT_ERROR] Message: {exc}")
+                    log_action("AUDIO_STT_FAIL", f"STT Error: {exc}", "I couldn't quite catch that.", level=logging.ERROR)
         except (OSError, Exception) as exc:
-            logger.warning(f"[AUDIO_HEADLESS] No microphone found or hardware error: {exc}")
+            log_action("AUDIO_HARDWARE", f"Hardware error: {exc}", "I can't find a microphone to listen with.", level=logging.WARNING)
             return ""
 
         return ""

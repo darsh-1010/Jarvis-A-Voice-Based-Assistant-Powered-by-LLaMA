@@ -10,8 +10,9 @@ from openai import AsyncOpenAI
 import tiktoken
 import redis
 import httpx
+import logging
 from jarvis.config import config
-from jarvis.logger import logger
+from jarvis.logger import logger, log_action
 
 class BaseProvider(ABC):
     """Abstract base class for async AI providers."""
@@ -97,9 +98,18 @@ class BrainManager:
                     decode_responses=True
                 )
                 self.redis.ping()
-                logger.info("[BRAIN_MEMORY] Connected to Redis.")
+                log_action(
+                    "BRAIN_MEMORY",
+                    f"Connected to Redis at {config.redis_host}:{config.redis_port}",
+                    "Connected to my long-term memory store."
+                )
             except Exception as e:
-                logger.warning(f"[BRAIN_MEMORY] Redis failed: {e}. Falling back to local.")
+                log_action(
+                    "BRAIN_MEMORY",
+                    f"Redis connection failed: {e}",
+                    "Couldn't connect to Redis; using local memory instead.",
+                    level=logging.WARNING
+                )
         
         self.local_history: List[str] = []
 
@@ -132,7 +142,12 @@ class BrainManager:
                 self.provider_instances[name] = OllamaProvider()
             return self.provider_instances.get(name)
         except Exception as e:
-            logger.error(f"[BRAIN_INIT] Failed {name}: {e}")
+            log_action(
+                "BRAIN_INIT",
+                f"Failed to initialize {name}: {e}",
+                f"I had some trouble starting my {name} module.",
+                level=logging.ERROR
+            )
             return None
 
     async def generate_response(self, question: str) -> str:
@@ -165,7 +180,11 @@ class BrainManager:
 
                 tokens_out = self._count_tokens(response)
                 
-                logger.info(f"[BRAIN_USAGE] Provider: {name} | In: {tokens_in} | Out: {tokens_out} | Time: {duration:.2f}s")
+                log_action(
+                    "BRAIN_USAGE",
+                    f"Provider: {name} | In: {tokens_in} | Out: {tokens_out} | Time: {duration:.2f}s",
+                    f"I've generated a response using my {name} module."
+                )
                 
                 # Update history
                 history.append(f"User: {question}")
@@ -174,7 +193,12 @@ class BrainManager:
                 
                 return response
             except Exception as exc:
-                logger.warning(f"[BRAIN_FALLBACK] {name} failed: {exc}")
+                log_action(
+                    "BRAIN_FALLBACK",
+                    f"Provider {name} failed: {exc}",
+                    f"My {name} module failed, trying an alternative brain.",
+                    level=logging.WARNING
+                )
                 last_error = str(exc)
                 continue
 
@@ -182,7 +206,11 @@ class BrainManager:
 
     async def analyze_error(self, command: str, error: str) -> str:
         """Logic for Self-Correcting Code Agent."""
-        logger.info(f"[BRAIN_REFLECTION] Analyzing error for: {command}")
+        log_action(
+            "BRAIN_REFLECTION",
+            f"Analyzing error for: {command} | Error: {error}",
+            "I'm analyzing what went wrong so I can self-correct."
+        )
         prompt = (
             f"The following command failed: '{command}'\n"
             f"Error message: '{error}'\n"
