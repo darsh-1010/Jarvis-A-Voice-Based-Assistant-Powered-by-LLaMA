@@ -1,18 +1,97 @@
-.agents/
-.env
-.env.local
-.env.*.local
+# ==============================================================================
+# JARVIS: PRODUCTION-GRADE .GITIGNORE
+# ==============================================================================
+
+# --- System & OS ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.DS_Store?
+ehthumbs.db
+Icon?
+
+# --- Python (FastAPI / Core Logic) ---
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+env/
+.env/
 venv/
 .venv/
-node_modules/
-.next/
-out/
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
 *.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Node.js / Next.js (Frontend) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/*.tsbuildinfo
+frontend/.npm/
+frontend/.eslintcache
+frontend/.yarn/
+frontend/.pnp.*
+frontend/yarn-error.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+
+# --- Databases & Vector Stores ---
+# Ignore local persistence for ChromaDB and knowledge files
+data/
+*.rdb
+*.aof
+*.db
+*.sqlite3
+*.sqlite3-journal
+
+# --- Environment & Secrets ---
+# Sensitive environment files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+cert.crt
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+
+# --- Project Specific Artifacts ---
+# Generated vision and screenshot files
 screenshot.png
 temp_vision.png
-data/
+.agents/
+
+# --- Docker ---
+# Ignore override files if they contain local-only configs
+docker-compose.override.yml
