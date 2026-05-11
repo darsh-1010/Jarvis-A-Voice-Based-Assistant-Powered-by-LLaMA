@@ -33,7 +33,14 @@ class OllamaProvider(BaseProvider):
         from langchain_ollama import OllamaLLM
         from langchain_core.prompts import ChatPromptTemplate
         self.model = OllamaLLM(model=config.ollama_model)
-        template = "{persona}\nContext: {context}\nQuestion: {question}\nAnswer:"
+        # Structured sections + recency-effect reminder at the end improve
+        # response quality and format adherence on smaller local models.
+        template = (
+            "{persona}\n\n"
+            "[RELEVANT CONTEXT]\n{context}\n\n"
+            "[USER REQUEST]\n{question}\n\n"
+            "[YOUR RESPONSE — plain spoken English only, no markdown]"
+        )
         self.prompt = ChatPromptTemplate.from_template(template)
         self.chain = self.prompt | self.model
 
@@ -46,7 +53,7 @@ class OllamaProvider(BaseProvider):
         """Synchronous invocation for threading."""
         return self.chain.invoke({
             "persona": config.jarvis_persona,
-            "context": context,
+            "context": context if context.strip() else "No additional context.",
             "question": question
         })
 
@@ -62,13 +69,25 @@ class GeminiProvider(BaseProvider):
         self.model = genai.GenerativeModel(config.gemini_model)
 
     async def generate(self, question: str, context: str, timeout: int = 20) -> str:
-        """Generate content via Gemini thread pool."""
-        full_prompt = f"{config.jarvis_persona}\nContext: {context}\nQuestion: {question}\nAnswer:"
-        # Gemini SDK generate_content is blocking, use thread or async method if available
+        """Generate content via Gemini with system/user role separation."""
+        # Gemini supports system_instruction natively — this properly separates
+        # the persona from the user turn rather than concatenating into one blob.
+        model = genai.GenerativeModel(
+            config.gemini_model,
+            system_instruction=config.jarvis_persona
+        )
+        user_turn = (
+            f"[RELEVANT CONTEXT]\n{context if context.strip() else 'None'}\n\n"
+            f"[USER REQUEST]\n{question}"
+        )
         response = await asyncio.to_thread(
-            self.model.generate_content,
-            full_prompt,
-            generation_config={"max_output_tokens": 512, "temperature": 0.7}
+            model.generate_content,
+            user_turn,
+            generation_config={
+                "max_output_tokens": 400,   # Shorter cap keeps TTS responses punchy
+                "temperature": 0.65,         # Slightly lower for more deterministic answers
+                "top_p": 0.9
+            }
         )
         return response.text
 
@@ -86,12 +105,19 @@ class OpenRouterProvider(BaseProvider):
         )
 
     async def generate(self, question: str, context: str, timeout: int = 20) -> str:
-        """Generate response via OpenRouter."""
-        full_prompt = f"{config.jarvis_persona}\nContext: {context}\nQuestion: {question}"
+        """Generate response via OpenRouter using proper system/user chat roles."""
+        # Using the messages array with explicit system/user roles is significantly
+        # more reliable than concatenating everything into a single user message.
+        context_block = context.strip() if context.strip() else "No additional context."
+        user_content = f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
         completion = await self.client.chat.completions.create(
             model=config.openrouter_model,
-            messages=[{"role": "user", "content": full_prompt}],
-            max_tokens=512,
+            messages=[
+                {"role": "system", "content": config.jarvis_persona},
+                {"role": "user", "content": user_content}
+            ],
+            max_tokens=400,
+            temperature=0.65,
             timeout=timeout
         )
         return completion.choices[0].message.content
@@ -245,11 +271,15 @@ class BrainManager:
         log_action(
             "BRAIN_REFLECTION",
             f"Analyzing error for: {command} | Error: {error}",
-            "I'm analyzing what went wrong so I can self-correct."
+            "I'm analysing what went wrong so I can self-correct."
         )
+        # Structured error analysis prompt — gives the LLM enough context to
+        # diagnose the root cause and suggest an actionable fix, not just repeat the error.
         prompt = (
-            f"The following command failed: '{command}'\n"
-            f"Error message: '{error}'\n"
-            "Analyze the error and provide a brief explanation or fix."
+            "A voice command failed during execution. Analyse the root cause and give a clear, "
+            "one-sentence spoken explanation of what went wrong, followed by a practical suggestion "
+            "for what the user should try instead. Be direct and calm. No markdown.\n\n"
+            f"Failed command: '{command}'\n"
+            f"Error details: '{error}'"
         )
         return await self.generate_response(prompt)
