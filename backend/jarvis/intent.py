@@ -54,11 +54,27 @@ def _build_classification_prompt(command: str, tools: list) -> str:
     # Inline parameter hints reduce hallucination on argument extraction
     param_notes = (
         "Parameter hints:\n"
-        f"  fetch_latest_news -> category (one of: {', '.join(sorted(_NEWS_CATEGORIES))}, default: general)\n"
-        "  open_app          -> app_name (e.g. notepad, calculator, cmd)\n"
-        "  search_google     -> query (the search phrase)\n"
-        "  search_youtube    -> query (the search phrase)\n"
-        "  open_spotify      -> song_name (name of song or artist)\n"
+        f"  fetch_latest_news     -> category (one of: {', '.join(sorted(_NEWS_CATEGORIES))}, default: general)\n"
+        "  open_app              -> app_name (e.g. notepad, calculator, cmd)\n"
+        "  search_google         -> query (the search phrase)\n"
+        "  search_youtube        -> query (the search phrase)\n"
+        "  search_spotify_web    -> song_name (search on Spotify web player)\n"
+        "  get_weather           -> city (city name, optional — defaults to configured city)\n"
+        "  get_forecast          -> city (city name, optional)\n"
+        "  get_crypto_price      -> coin (e.g. bitcoin, ethereum, solana — name or ticker)\n"
+        "  get_stock_price       -> symbol (ticker symbol, e.g. AAPL, RELIANCE.BSE)\n"
+        "  get_stock_history     -> symbol (ticker), period (e.g. 5d, 1mo, 3mo, default: 5d)\n"
+        "  spotify_play          -> song_name (song or artist to search and play)\n"
+        "  start_pomodoro        -> minutes (integer, default: 25)\n"
+        "  translate_text        -> text (phrase to translate), "
+        "target_language (ISO code or name, e.g. fr, french, ja)\n"
+        "  list_calendar_events  -> max_results (integer, default: 5)\n"
+        "  create_calendar_event -> title (event name), date (YYYY-MM-DD), "
+        "start_time (HH:MM), duration_hours (int, default: 1)\n"
+        "  read_inbox            -> max_results (integer, default: 5)\n"
+        "  send_email            -> to (email address), subject (string), body (message text)\n"
+        "  list_processes        -> top_n (integer, default: 5)\n"
+        "  kill_process          -> process_name (partial or full process name)\n"
     )
 
     return (

@@ -68,10 +68,26 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-1.5-flash"
     openrouter_model: str = "google/gemma-2-9b-it:free"
 
-    # API Keys — all loaded from .env, never hardcoded
+    # AI API Keys — all loaded from .env, never hardcoded
     news_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
+
+    # Weather
+    openweathermap_api_key: Optional[str] = None
+    user_city: str = "Mumbai"
+    user_timezone: str = "Asia/Kolkata"
+
+    # Finance
+    alpha_vantage_api_key: Optional[str] = None
+
+    # Spotify
+    spotify_client_id: Optional[str] = None
+    spotify_client_secret: Optional[str] = None
+    spotify_redirect_uri: str = "http://localhost:8888/callback"
+
+    # Google Services (Calendar + Gmail — shared OAuth credentials file)
+    google_credentials_path: str = "./google_credentials.json"
 
     # Memory Settings
     redis_host: str = "localhost"

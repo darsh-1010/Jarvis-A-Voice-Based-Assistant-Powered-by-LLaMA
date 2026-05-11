@@ -26,4 +26,11 @@ chromadb
 tiktoken
 redis
 python-dotenv
-pywin32
+pywin32
+spotipy
+alpha_vantage
+yfinance
+deep-translator
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

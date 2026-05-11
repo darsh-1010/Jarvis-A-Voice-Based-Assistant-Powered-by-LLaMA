@@ -13,9 +13,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from jarvis.audio import AudioManager
 from jarvis.brain import BrainManager
-import jarvis.commands.system  # noqa: F401 — side-effect: registers system tools
-import jarvis.commands.media   # noqa: F401 — side-effect: registers media tools
-import jarvis.commands.web     # noqa: F401 — side-effect: registers web tools
+import jarvis.commands.system        # noqa: F401 — side-effect: registers system tools
+import jarvis.commands.media         # noqa: F401 — side-effect: registers media tools
+import jarvis.commands.web           # noqa: F401 — side-effect: registers web tools
+import jarvis.commands.vision        # noqa: F401 — side-effect: registers vision tools
+import jarvis.commands.weather       # noqa: F401 — side-effect: registers weather tools
+import jarvis.commands.finance       # noqa: F401 — side-effect: registers finance tools
+import jarvis.commands.productivity  # noqa: F401 — side-effect: registers productivity tools
+import jarvis.commands.calendar_cmd  # noqa: F401 — side-effect: registers calendar tools
+import jarvis.commands.gmail_cmd     # noqa: F401 — side-effect: registers gmail tools
 from jarvis.commands.registry import registry
 from jarvis.config import config
 from jarvis.intent import IntentRouter
@@ -27,8 +33,21 @@ from jarvis.logger import log_action
 # ──────────────────────────────────────────────
 
 # Tools whose raw output should be summarised by the LLM before speaking.
-# All other tools receive a simple "Done, sir." confirmation.
-_ENRICHABLE_TOOLS = {"fetch_latest_news", "test_internet_speed"}
+_LLM_ENRICHABLE_TOOLS = {"fetch_latest_news", "test_internet_speed"}
+
+# Tools that already return a spoken-ready string — passed through directly.
+# Adding a tool here avoids a redundant LLM round-trip for self-describing results.
+_SPOKEN_RESULT_TOOLS = {
+    "get_weather", "get_forecast",
+    "get_crypto_price", "get_stock_price", "get_stock_history",
+    "get_system_health", "list_processes", "kill_process",
+    "spotify_play", "spotify_pause", "spotify_next", "spotify_previous",
+    "start_pomodoro", "translate_text", "morning_briefing",
+    "read_inbox", "send_email",
+    "list_calendar_events", "create_calendar_event",
+}
+
+_ENRICHABLE_TOOLS = _LLM_ENRICHABLE_TOOLS | _SPOKEN_RESULT_TOOLS
 
 
 async def _enrich_news(headlines: list, brain: BrainManager) -> str:
@@ -92,6 +111,10 @@ async def _enrich_result(tool_name: str, result: Any, brain: BrainManager) -> st
     """
     if tool_name not in _ENRICHABLE_TOOLS:
         return "Done, sir."
+
+    # Pass-through: tool already returned a spoken-ready string
+    if tool_name in _SPOKEN_RESULT_TOOLS:
+        return result if isinstance(result, str) else "Done, sir."
 
     if tool_name == "fetch_latest_news":
         return await _enrich_news(result if isinstance(result, list) else [], brain)

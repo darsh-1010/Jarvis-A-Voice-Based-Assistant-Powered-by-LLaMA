@@ -10,8 +10,8 @@ from jarvis.commands.registry import registry
 from jarvis.logger import log_action
 
 
-@registry.register(name="open_spotify", description="Search for and play a song or artist on Spotify.")
-def open_spotify(song_name: str) -> None:
+@registry.register(name="search_spotify_web", description="Search for a song or artist on the Spotify web player.")
+def search_spotify_web(song_name: str) -> None:
     """
     Search for a song on Spotify.
 
