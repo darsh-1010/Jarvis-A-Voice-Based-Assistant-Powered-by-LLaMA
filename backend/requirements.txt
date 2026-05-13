@@ -1,5 +1,7 @@
-SpeechRecognition
-pyttsx3
+faster-whisper
+kokoro
+sounddevice
+soundfile
 opencv-python
 pyautogui
 requests
