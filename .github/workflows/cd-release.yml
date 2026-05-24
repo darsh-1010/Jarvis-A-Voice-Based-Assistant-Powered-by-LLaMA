@@ -1,0 +1,41 @@
+name: CD Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Backend Image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/jarvis-backend:latest
+          ghcr.io/${{ github.repository }}/jarvis-backend:${{ github.ref_name }}
+
+    - name: Build and push Frontend Image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/jarvis-frontend:latest
+          ghcr.io/${{ github.repository }}/jarvis-frontend:${{ github.ref_name }}
