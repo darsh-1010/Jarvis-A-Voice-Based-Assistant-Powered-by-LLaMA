@@ -11,18 +11,25 @@ class KnowledgeBase:
     """Manages local document ingestion and retrieval."""
     
     def __init__(self):
-        """Initialize ChromaDB client and collection."""
-        self.client = chromadb.PersistentClient(path=config.vector_db_path)
-        self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
-        self.collection = self.client.get_or_create_collection(
-            name="jarvis_knowledge",
-            embedding_function=self.embedding_fn
-        )
-        logger.info("[KNOWLEDGE_INIT] ChromaDB initialized.")
+        """Initialize KnowledgeBase properties (lazy loading)."""
+        self._client = None
+        self._collection = None
+        self._embedding_fn = None
+
+    def _init_chroma(self):
+        if self._client is None:
+            self._client = chromadb.PersistentClient(path=config.vector_db_path)
+            self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+            self._collection = self._client.get_or_create_collection(
+                name="jarvis_knowledge",
+                embedding_function=self._embedding_fn
+            )
+            logger.info("[KNOWLEDGE_INIT] ChromaDB initialized.")
 
     def add_document(self, content: str, metadata: dict, doc_id: str):
         """Add a document to the vector database."""
-        self.collection.add(
+        self._init_chroma()
+        self._collection.add(
             documents=[content],
             metadatas=[metadata],
             ids=[doc_id]
@@ -32,7 +39,8 @@ class KnowledgeBase:
     def query(self, text: str, n_results: int = 3) -> str:
         """Search for relevant context in the knowledge base."""
         try:
-            results = self.collection.query(
+            self._init_chroma()
+            results = self._collection.query(
                 query_texts=[text],
                 n_results=n_results
             )

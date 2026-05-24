@@ -5,8 +5,10 @@ from unittest.mock import MagicMock, AsyncMock, patch
 import sys
 
 # Comprehensive Mocks to prevent environment-specific failures
+import importlib.machinery
 mock_cv2 = MagicMock()
 mock_cv2.__version__ = '4.0.0'
+mock_cv2.__spec__ = importlib.machinery.ModuleSpec(name="cv2", loader=MagicMock())
 
 mocks = {
     'pyttsx3': MagicMock(),
@@ -30,6 +32,8 @@ mocks = {
 }
 
 for module_name, mock_obj in mocks.items():
+    if not hasattr(mock_obj, "__spec__") or not getattr(mock_obj, "__spec__"):
+        mock_obj.__spec__ = importlib.machinery.ModuleSpec(name=module_name, loader=MagicMock())
     sys.modules[module_name] = mock_obj
 
 # Import Jarvis components AFTER mocks are set
@@ -49,6 +53,11 @@ class TestJarvisE2E(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         # Prevent actually loading config from file for tests if possible, 
         # but Jarvis() will load it. We'll mock the config instance if needed.
+        # Patch config values directly to prevent test failures on missing env keys
+        from jarvis.config import config
+        self.original_owm_key = config.openweathermap_api_key
+        config.openweathermap_api_key = "test-owm-key"
+        
         self.assistant = Jarvis()
         self.assistant.audio.speak = AsyncMock()
         self.assistant.audio.listen = AsyncMock()
@@ -57,6 +66,10 @@ class TestJarvisE2E(unittest.IsolatedAsyncioTestCase):
         
         self.mock_provider = AsyncMock()
         self.assistant.brain.get_active_provider.return_value = self.mock_provider
+
+    async def asyncTearDown(self):
+        from jarvis.config import config
+        config.openweathermap_api_key = self.original_owm_key
 
     async def simulate_command(self, text, mock_intent_json):
         self.mock_provider.generate.return_value = json.dumps(mock_intent_json)
@@ -93,7 +106,14 @@ class TestJarvisE2E(unittest.IsolatedAsyncioTestCase):
         self.assertIn("$65,000.00", last_speech)
 
     async def test_pomodoro_flow(self):
-        with patch('jarvis.commands.productivity.asyncio.create_task') as mock_task:
+        # We need a custom mock for create_task that actually runs the coroutine to avoid unawaited warnings
+        async def mock_create_task_side_effect(coro, *args, **kwargs):
+            # We cancel it immediately or just await it, but since it's an infinite loop, we cancel it.
+            # Actually, `_countdown()` is a sleep loop. We can just close the coroutine.
+            coro.close()
+            return MagicMock()
+
+        with patch('jarvis.commands.productivity.asyncio.create_task', side_effect=mock_create_task_side_effect):
             await self.simulate_command(
                 "Start a 10 minute pomodoro",
                 {"tool": "start_pomodoro", "params": {"minutes": 10}}
