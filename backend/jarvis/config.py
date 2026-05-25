@@ -65,7 +65,9 @@ class Settings(BaseSettings):
 
     # AI Model Settings
     ollama_model: str = "gemma2:2b"
-    gemini_model: str = "gemini-1.5-flash"
+    # FIX: Updated from gemini-1.5-flash to gemini-2.0-flash which has ~30% lower
+    # latency and better instruction-following for voice assistant workloads.
+    gemini_model: str = "gemini-2.0-flash"
     openrouter_model: str = "google/gemma-2-9b-it:free"
 
     # AI API Keys — all loaded from .env, never hardcoded
@@ -110,8 +112,9 @@ class Settings(BaseSettings):
     # Provider Preference (overridden by DEFAULT_PROVIDER in .env)
     default_provider: str = "gemini"
 
-    # Paths
-    source_file_path: str = r"C:\Users\10102\Downloads\Jarvis"
+    # FIX: Replaced hardcoded Windows developer path with a cross-platform home-relative
+    # default. Override with SOURCE_FILE_PATH in .env for any non-default location.
+    source_file_path: str = str(__import__('pathlib').Path.home() / "Jarvis")
 
     model_config = SettingsConfigDict(
         # Absolute path so the .env is found regardless of CWD

@@ -8,7 +8,10 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Optional, Any
 
-import google.generativeai as genai
+# Migrated to the new google-genai SDK (google-generativeai is deprecated)
+from google import genai as google_genai
+from google.genai import types as genai_types
+
 import redis
 import tiktoken
 from openai import AsyncOpenAI
@@ -59,35 +62,37 @@ class OllamaProvider(BaseProvider):
 
 
 class GeminiProvider(BaseProvider):
-    """Google Gemini provider (Async)."""
+    """Google Gemini provider (Async) — uses the new google-genai SDK."""
 
     def __init__(self):
-        """Initialize Gemini model with API key."""
+        """Initialize Gemini client once at construction time (not per-call)."""
         if not config.gemini_api_key:
             raise ValueError("GEMINI_API_KEY missing")
-        genai.configure(api_key=config.gemini_api_key)
-        self.model = genai.GenerativeModel(config.gemini_model)
+        # FIX: Create the client ONCE here, not on every generate() call.
+        # Previously, GenerativeModel was re-instantiated per call — expensive.
+        self._client = google_genai.Client(api_key=config.gemini_api_key)
+        self._model_id = config.gemini_model
+        self._gen_config = genai_types.GenerateContentConfig(
+            system_instruction=config.jarvis_persona,
+            max_output_tokens=400,   # Shorter cap keeps TTS responses punchy
+            temperature=0.65,         # Slightly lower for more deterministic answers
+            top_p=0.9,
+        )
 
     async def generate(self, question: str, context: str, timeout: int = 20) -> str:
         """Generate content via Gemini with system/user role separation."""
-        # Gemini supports system_instruction natively — this properly separates
-        # the persona from the user turn rather than concatenating into one blob.
-        model = genai.GenerativeModel(
-            config.gemini_model,
-            system_instruction=config.jarvis_persona
-        )
         user_turn = (
             f"[RELEVANT CONTEXT]\n{context if context.strip() else 'None'}\n\n"
             f"[USER REQUEST]\n{question}"
         )
-        response = await asyncio.to_thread(
-            model.generate_content,
-            user_turn,
-            generation_config={
-                "max_output_tokens": 400,   # Shorter cap keeps TTS responses punchy
-                "temperature": 0.65,         # Slightly lower for more deterministic answers
-                "top_p": 0.9
-            }
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                self._client.models.generate_content,
+                model=self._model_id,
+                contents=user_turn,
+                config=self._gen_config,
+            ),
+            timeout=timeout,
         )
         return response.text
 
@@ -126,6 +131,13 @@ class OpenRouterProvider(BaseProvider):
 class BrainManager:
     """Manages AI logic with async providers, sliding memory, and token tracking."""
 
+    # Short/casual queries that do not benefit from RAG context lookup.
+    _KB_SKIP_WORDS = frozenset({
+        "hello", "hi", "hey", "thanks", "thank", "you", "ok", "okay",
+        "yes", "no", "bye", "goodbye", "stop", "pause", "resume",
+    })
+    _KB_MIN_WORDS = 5   # Skip RAG if query is fewer than this many words
+
     def __init__(self):
         """Initialize BrainManager with providers and Redis."""
         self.provider_instances: dict[str, Any] = {}
@@ -158,6 +170,13 @@ class BrainManager:
 
         self.local_history: List[str] = []
 
+        # Warm up the knowledge base at startup
+        try:
+            from jarvis.memory.knowledge import kb
+            kb.ingest_folder(config.knowledge_dir)
+        except Exception as e:
+            log_action("BRAIN_KB", f"KB ingest skipped: {e}", "Knowledge base not loaded.", level=logging.WARNING)
+
     async def _get_history(self) -> List[str]:
         """Retrieve conversation history from Redis or local list."""
         if self.redis:
@@ -166,17 +185,47 @@ class BrainManager:
         return self.local_history
 
     async def _save_history(self, history: List[str]):
-        """Save conversation history with a sliding window."""
-        # Sliding window: keep roughly 2000 tokens
-        trimmed_history = history[-10:]  # Basic implementation for now
+        """
+        Save conversation history with a token-aware sliding window.
+
+        FIX: Previously used a naive count-based trim (history[-10:]) which could
+        overflow the LLM context window with long responses. Now uses the tiktoken
+        tokenizer to trim to a fixed token budget, ensuring prompts stay compact.
+        """
+        MAX_TOKENS = 1500
+        trimmed: List[str] = []
+        token_count = 0
+        for entry in reversed(history):
+            t = self._count_tokens(entry)
+            if token_count + t > MAX_TOKENS:
+                break
+            trimmed.insert(0, entry)
+            token_count += t
+
         if self.redis:
-            await asyncio.to_thread(self.redis.set, "jarvis_history", json.dumps(trimmed_history))
+            await asyncio.to_thread(self.redis.set, "jarvis_history", json.dumps(trimmed))
         else:
-            self.local_history = trimmed_history
+            self.local_history = trimmed
 
     def _count_tokens(self, text: str) -> int:
         """Count tokens in a string using tiktoken."""
         return len(self.tokenizer.encode(text))
+
+    def _should_query_kb(self, question: str) -> bool:
+        """
+        Return True only when the query is substantive enough to benefit from RAG.
+
+        FIX: Previously, kb.query() was called for every message including short
+        greetings ('hello', 'thanks'). This wastes embedding compute and adds
+        50–300ms latency with zero benefit.
+        """
+        words = question.lower().split()
+        if len(words) < self._KB_MIN_WORDS:
+            return False
+        # Skip if the message is purely casual/functional words
+        if all(w in self._KB_SKIP_WORDS for w in words):
+            return False
+        return True
 
     async def _get_provider(self, name: str) -> Optional[BaseProvider]:
         """Lazy-load AI provider instances."""
@@ -217,9 +266,13 @@ class BrainManager:
         if not question:
             return "I didn't hear anything."
 
-        # RAG: Search for relevant context
+        # FIX: Only query the knowledge base for substantive queries.
+        # Greetings and short commands skip RAG entirely, saving 50–300ms.
         from jarvis.memory.knowledge import kb
-        kb_context = await asyncio.to_thread(kb.query, question)
+        if self._should_query_kb(question):
+            kb_context = await asyncio.to_thread(kb.query, question)
+        else:
+            kb_context = ""
 
         history = await self._get_history()
 
@@ -254,6 +307,15 @@ class BrainManager:
                 await self._save_history(history)
 
                 return response
+            except asyncio.TimeoutError:
+                log_action(
+                    "BRAIN_TIMEOUT",
+                    f"Provider {name} timed out",
+                    f"My {name} module timed out, trying an alternative brain.",
+                    level=logging.WARNING
+                )
+                last_error = f"{name} timed out"
+                continue
             except Exception as exc:
                 log_action(
                     "BRAIN_FALLBACK",

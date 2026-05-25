@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────────────────────────
+#  Jarvis Backend — Development / Testing Dependencies
+#  Install ONLY in local dev and CI environments, never in production.
+#    pip install -r requirements-dev.txt
+# ─────────────────────────────────────────────────────────────
+
+# ── Testing Framework ────────────────────────────────────────
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-mock>=3.14.0
+httpx>=0.27.0          # Used by test_api.py for async HTTP assertions
+
+# ── Linting / Formatting ──────────────────────────────────────
+flake8>=7.0.0
+pylint>=3.0.0
+
+# ── Type Checking ─────────────────────────────────────────────
+mypy>=1.10.0

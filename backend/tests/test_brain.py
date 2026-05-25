@@ -26,30 +26,34 @@ class TestGeminiProvider:
             GeminiProvider()
 
     def test_init_success(self, mocker):
-        """GeminiProvider should configure genai and create the model."""
+        """GeminiProvider should create a google-genai Client at init time."""
         mocker.patch("jarvis.brain.config.gemini_api_key", "test-key")
-        mocker.patch("jarvis.brain.config.gemini_model", "gemini-1.5-flash")
-        mock_genai = mocker.patch("jarvis.brain.genai")
+        mocker.patch("jarvis.brain.config.gemini_model", "gemini-2.0-flash")
+        mocker.patch("jarvis.brain.config.jarvis_persona", "You are Jarvis.")
+        # Patch the new SDK Client class
+        mock_client_cls = mocker.patch("jarvis.brain.google_genai.Client")
+        mock_genai_types = mocker.patch("jarvis.brain.genai_types")
         from jarvis.brain import GeminiProvider
         provider = GeminiProvider()
-        mock_genai.configure.assert_called_once_with(api_key="test-key")
+        # Client must be constructed with the API key
+        mock_client_cls.assert_called_once_with(api_key="test-key")
         assert provider is not None
 
     @pytest.mark.asyncio
     async def test_generate_returns_text(self, mocker):
         """generate() should return the .text attribute from the Gemini response."""
         mocker.patch("jarvis.brain.config.gemini_api_key", "test-key")
-        mocker.patch("jarvis.brain.config.gemini_model", "gemini-1.5-flash")
+        mocker.patch("jarvis.brain.config.gemini_model", "gemini-2.0-flash")
         mocker.patch("jarvis.brain.config.jarvis_persona", "You are Jarvis.")
 
         mock_response = MagicMock()
         mock_response.text = "Hello, sir."
 
-        mock_model = MagicMock()
-        mock_model.generate_content.return_value = mock_response
-
-        mock_genai = mocker.patch("jarvis.brain.genai")
-        mock_genai.GenerativeModel.return_value = mock_model
+        # Mock the new SDK client
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_response
+        mock_client_cls = mocker.patch("jarvis.brain.google_genai.Client", return_value=mock_client)
+        mocker.patch("jarvis.brain.genai_types.GenerateContentConfig", return_value=MagicMock())
 
         from jarvis.brain import GeminiProvider
         provider = GeminiProvider()
@@ -203,13 +207,19 @@ class TestBrainManager:
 
     @pytest.mark.asyncio
     async def test_save_history_local_sliding_window(self, mocker):
-        """_save_history should keep only the last 10 entries in local mode."""
+        """_save_history should use token-aware trimming to stay within budget."""
         from jarvis.brain import BrainManager
+        # Give the tokenizer a mock that returns a consistent token count per entry
+        mock_encoding = MagicMock()
+        # Each entry encodes to 10 tokens; budget is 1500, so all 20 fit (200 total)
+        mock_encoding.encode.return_value = list(range(10))
+        mocker.patch("jarvis.brain.tiktoken.get_encoding", return_value=mock_encoding)
         manager = BrainManager()
-        long_history = [f"msg-{i}" for i in range(20)]
+        # Supply 30 entries — all fit inside 1500 token budget (30 * 10 = 300)
+        long_history = [f"msg-{i}" for i in range(30)]
         await manager._save_history(long_history)
-        assert len(manager.local_history) == 10
-        assert manager.local_history == long_history[-10:]
+        # All 30 should be retained since 300 < 1500
+        assert len(manager.local_history) == 30
 
     @pytest.mark.asyncio
     async def test_generate_response_empty_question(self, mocker):

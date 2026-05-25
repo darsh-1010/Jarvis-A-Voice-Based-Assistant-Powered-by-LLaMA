@@ -19,12 +19,18 @@ class KnowledgeBase:
     def _init_chroma(self):
         if self._client is None:
             self._client = chromadb.PersistentClient(path=config.vector_db_path)
-            self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+            # FIX: Use SentenceTransformerEmbeddingFunction explicitly so the model
+            # is pre-loaded and stays in memory across calls. Previously used
+            # DefaultEmbeddingFunction() which reinitializes on every warm start.
+            from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+            self._embedding_fn = SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
             self._collection = self._client.get_or_create_collection(
                 name="jarvis_knowledge",
                 embedding_function=self._embedding_fn
             )
-            logger.info("[KNOWLEDGE_INIT] ChromaDB initialized.")
+            logger.info("[KNOWLEDGE_INIT] ChromaDB initialized with SentenceTransformer embeddings.")
 
     def add_document(self, content: str, metadata: dict, doc_id: str):
         """Add a document to the vector database."""

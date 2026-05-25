@@ -192,7 +192,11 @@ class Jarvis:
 
             if intent.tool_name:
                 # 3. Tool matched — invoke it, then enrich raw output for speech
-                raw_result = await registry.invoke(intent.tool_name, **intent.params)
+                # Pass audio_manager for Pomodoro so it reuses the loaded model
+                extra_kwargs: dict = {}
+                if intent.tool_name == "start_pomodoro":
+                    extra_kwargs["audio_manager"] = self.audio
+                raw_result = await registry.invoke(intent.tool_name, **intent.params, **extra_kwargs)
                 spoken = await _enrich_result(intent.tool_name, raw_result, self.brain)
                 await self.audio.speak(spoken)
             else:

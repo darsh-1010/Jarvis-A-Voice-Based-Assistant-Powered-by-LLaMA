@@ -1,42 +1,76 @@
-faster-whisper
-kokoro
-sounddevice
-soundfile
-opencv-python
-pyautogui
-requests
-beautifulsoup4
-langchain
-speedtest-cli
-pywhatkit
-langchain-ollama
-langchain-community
-langchain-core
-python-dotenv
-pynput
-pylint
-google-generativeai
-openai
-fastapi
-uvicorn
-psutil
-pydantic
-pydantic-settings
-python-multipart
-httpx
-chromadb
-tiktoken
-redis
-python-dotenv
-pywin32
-spotipy
-alpha_vantage
-yfinance
-deep-translator
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-pytest
-pytest-asyncio
-pytest-mock
-httpx
+# ─────────────────────────────────────────────────────────────
+#  Jarvis Backend — Production Dependencies
+#  Pin versions for reproducibility. Run:
+#    pip install -r requirements.txt
+#  For development also run:
+#    pip install -r requirements-dev.txt
+# ─────────────────────────────────────────────────────────────
+
+# ── Audio / STT / TTS ─────────────────────────────────────────
+faster-whisper>=1.0.0
+kokoro>=0.9.4
+sounddevice>=0.4.6
+soundfile>=0.12.1
+SpeechRecognition>=3.10.0
+
+# ── Vision / Computer Control ─────────────────────────────────
+opencv-python>=4.8.0
+pyautogui>=0.9.54
+pynput>=1.7.6
+
+# ── HTTP / Network ────────────────────────────────────────────
+requests>=2.31.0
+httpx>=0.27.0
+
+# ── Web Scraping / News ───────────────────────────────────────
+beautifulsoup4>=4.12.0
+
+# ── AI / LLM Providers ───────────────────────────────────────
+# FIX: Replaced deprecated 'google-generativeai' with 'google-genai'
+google-genai>=1.0.0
+openai>=1.30.0
+langchain>=0.2.0
+langchain-ollama>=0.1.0
+langchain-community>=0.2.0
+langchain-core>=0.2.0
+
+# ── Vector DB / RAG ───────────────────────────────────────────
+chromadb>=0.5.0
+tiktoken>=0.7.0
+
+# ── Memory / Caching ─────────────────────────────────────────
+redis>=5.0.0
+
+# ── Finance / Market Data ─────────────────────────────────────
+yfinance>=0.2.38
+alpha_vantage>=2.3.1
+
+# ── Productivity ──────────────────────────────────────────────
+spotipy>=2.23.0
+deep-translator>=1.11.4
+speedtest-cli>=2.1.3
+pywhatkit>=5.4
+
+# ── Google APIs (Calendar + Gmail) ────────────────────────────
+google-api-python-client>=2.125.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+
+# ── Web Framework ─────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+# FIX: Added slowapi for production rate limiting on /chat endpoint
+slowapi>=0.1.9
+
+# ── Config / Serialization ────────────────────────────────────
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+
+# ── System Utilities ──────────────────────────────────────────
+psutil>=5.9.8
+numpy>=1.26.0
+
+# ── Windows-Specific ──────────────────────────────────────────
+pywin32>=306; sys_platform == "win32"

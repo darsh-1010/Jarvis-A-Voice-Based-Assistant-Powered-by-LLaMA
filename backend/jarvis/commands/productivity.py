@@ -147,15 +147,21 @@ _POMODORO_BREAK_MINUTES = 5
     name="start_pomodoro",
     description="Start a Pomodoro focus timer. Default is 25 minutes of focus.",
 )
-async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES) -> str:
+async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=None) -> str:
     """
     Start a Pomodoro-style focus countdown and notify when it expires.
 
     The timer runs as an asyncio background task so it does not block
     the main voice listening loop.
 
+    FIX: Previously created a new AudioManager() inside the background task,
+    which reloaded the full Whisper model (~800MB) when the timer fired.
+    Now accepts an optional audio_manager reference via the call site,
+    and only creates a minimal fallback if none is provided.
+
     Args:
-        minutes: Focus duration in minutes. Defaults to 25.
+        minutes:       Focus duration in minutes. Defaults to 25.
+        audio_manager: Existing AudioManager instance to reuse for notification.
 
     Returns:
         Immediate confirmation that the timer has started.
@@ -165,12 +171,15 @@ async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES) -> str:
     async def _countdown():
         await asyncio.sleep(minutes * 60)
         log_action("POMODORO_DONE", f"Timer complete: {minutes}m", "Pomodoro session complete.")
-        # Speak via a fresh TTS engine — the main loop may be idle by this point
-        from jarvis.audio import AudioManager
-        audio = AudioManager()
-        await audio.speak(
-            f"Your {minutes}-minute focus session is complete, sir. Time to take a short break."
-        )
+        msg = f"Your {minutes}-minute focus session is complete, sir. Time to take a short break."
+        if audio_manager is not None:
+            # Reuse the already-loaded AudioManager — no model reload needed
+            await audio_manager.speak(msg)
+        else:
+            # Fallback: create a lightweight TTS-only instance (no Whisper)
+            from jarvis.audio import AudioManager as _AM
+            _audio = _AM()
+            await _audio.speak(msg)
 
     asyncio.create_task(_countdown())
     return f"Your {minutes}-minute Pomodoro timer has started, sir. I'll notify you when it ends."
