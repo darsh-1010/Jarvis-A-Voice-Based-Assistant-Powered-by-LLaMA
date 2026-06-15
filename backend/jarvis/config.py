@@ -66,11 +66,13 @@ class Settings(BaseSettings):
     # latency and better instruction-following for voice assistant workloads.
     gemini_model: str = "gemini-2.0-flash"
     openrouter_model: str = "google/gemma-2-9b-it:free"
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # AI API Keys — all loaded from .env, never hardcoded
     news_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
 
     # Weather
     openweathermap_api_key: Optional[str] = None

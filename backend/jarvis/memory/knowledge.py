@@ -41,7 +41,9 @@ class KnowledgeBase:
         """Add a document to the vector database."""
         self._init_chroma()
         if self._collection is not None:
-            self._collection.add(documents=[content], metadatas=[metadata], ids=[doc_id])
+            self._collection.add(
+                documents=[content], metadatas=[metadata], ids=[doc_id]
+            )
             logger.info(f"[KNOWLEDGE_ADD] Added document: {doc_id}")
 
     def query(self, text: str, n_results: int = 3) -> str:

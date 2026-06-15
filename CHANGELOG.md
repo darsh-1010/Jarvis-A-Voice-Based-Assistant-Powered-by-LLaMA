@@ -2,8 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-06-15] — Self-Improvement Loop & Security Guardrails
+## [2026-06-15] — Self-Improvement Loop, Security Guardrails & LiteLLM Integration
 ### Added
+- **LiteLLM Router Integration**: Added `litellm.Router` in `backend/jarvis/brain.py` for unified multi-provider failover. Automatically routes across Google Gemini, Groq Cloud, and local Ollama if keys are present.
+- **LiteLLM Provider Adapter**: Added `LiteLLMProviderWrapper` to adapt LiteLLM Router output to the legacy `BaseProvider` interface for seamless compatibility with intent parsing and tests.
 - **Self-Improvement Loop**: Added `TelemetryStore` (`backend/jarvis/memory/telemetry.py`) to log tool executions in a SQLite database, `ReflectionEngine` (`backend/jarvis/memory/reflection.py`) to research task failures via LLM and web search and generate patches, and `GuardrailEngine` (`backend/jarvis/security/guardrails.py`) to validate and apply code patches.
 - **5-Layer Security Guardrail Pipeline**:
   - Layer 1: No-go zone directory and filename checks to prevent path traversal and modifications outside of `jarvis/commands/`.
@@ -14,6 +16,9 @@ All notable changes to this project will be documented in this file.
 - **New API Endpoints**: Endpoints for telemetry stats, reflections list, patches list, and manual patch rollback.
 
 ### Changed
+- Refactored `backend/jarvis/brain.py` to use LiteLLM Router for AI backend, removing deprecated custom provider classes (`GeminiProvider`, `OpenRouterProvider`, `OllamaProvider`).
+- Updated `backend/jarvis/config.py` to support Groq model settings and keys (`groq_api_key`, `groq_model`).
+- Updated `backend/requirements.txt` to add `litellm==1.89.0`.
 - Instrumented `ToolRegistry` (`backend/jarvis/commands/registry.py`) to collect execution metrics and invoke the self-improvement loop in the background.
 - Cleaned up typing errors, imports, and MD5 usage in `intent.py` to pass strict `pyright` and `bandit` verification gates.
 

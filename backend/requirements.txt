@@ -29,6 +29,7 @@ beautifulsoup4>=4.12.0
 # FIX: Replaced deprecated 'google-generativeai' with 'google-genai'
 google-genai>=1.0.0
 openai>=1.30.0
+litellm==1.89.0
 langchain>=0.2.0
 langchain-ollama>=0.1.0
 langchain-community>=0.2.0

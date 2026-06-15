@@ -138,7 +138,9 @@ class IntentRouter:
 
     def _cache_key(self, command: str) -> str:
         """Generate a stable Redis cache key for a command."""
-        digest = hashlib.md5(command.lower().strip().encode(), usedforsecurity=False).hexdigest()
+        digest = hashlib.md5(
+            command.lower().strip().encode(), usedforsecurity=False
+        ).hexdigest()
         return f"intent:{digest}"
 
     async def classify(self, command: str, tools: list) -> IntentResult:
