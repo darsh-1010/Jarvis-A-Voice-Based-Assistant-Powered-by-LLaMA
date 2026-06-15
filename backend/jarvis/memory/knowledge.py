@@ -1,15 +1,16 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Knowledge Base (RAG) system for Jarvis using ChromaDB."""
+
 import os
 import chromadb
-from chromadb.utils import embedding_functions
 from jarvis.config import config
 from jarvis.logger import logger
 
+
 class KnowledgeBase:
     """Manages local document ingestion and retrieval."""
-    
+
     def __init__(self):
         """Initialize KnowledgeBase properties (lazy loading)."""
         self._client = None
@@ -22,39 +23,41 @@ class KnowledgeBase:
             # FIX: Use SentenceTransformerEmbeddingFunction explicitly so the model
             # is pre-loaded and stays in memory across calls. Previously used
             # DefaultEmbeddingFunction() which reinitializes on every warm start.
-            from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+            from chromadb.utils.embedding_functions import (
+                SentenceTransformerEmbeddingFunction,
+            )
+
             self._embedding_fn = SentenceTransformerEmbeddingFunction(
                 model_name="all-MiniLM-L6-v2"
             )
             self._collection = self._client.get_or_create_collection(
-                name="jarvis_knowledge",
-                embedding_function=self._embedding_fn
+                name="jarvis_knowledge", embedding_function=self._embedding_fn
             )
-            logger.info("[KNOWLEDGE_INIT] ChromaDB initialized with SentenceTransformer embeddings.")
+            logger.info(
+                "[KNOWLEDGE_INIT] ChromaDB initialized with SentenceTransformer embeddings."
+            )
 
     def add_document(self, content: str, metadata: dict, doc_id: str):
         """Add a document to the vector database."""
         self._init_chroma()
-        self._collection.add(
-            documents=[content],
-            metadatas=[metadata],
-            ids=[doc_id]
-        )
-        logger.info(f"[KNOWLEDGE_ADD] Added document: {doc_id}")
+        if self._collection is not None:
+            self._collection.add(documents=[content], metadatas=[metadata], ids=[doc_id])
+            logger.info(f"[KNOWLEDGE_ADD] Added document: {doc_id}")
 
     def query(self, text: str, n_results: int = 3) -> str:
         """Search for relevant context in the knowledge base."""
         try:
             self._init_chroma()
-            results = self._collection.query(
-                query_texts=[text],
-                n_results=n_results
-            )
+            if self._collection is None:
+                return ""
+            results = self._collection.query(query_texts=[text], n_results=n_results)
             if not results["documents"] or not results["documents"][0]:
                 return ""
-            
+
             context = "\n---\n".join(results["documents"][0])
-            logger.info(f"[KNOWLEDGE_QUERY] Found {len(results['documents'][0])} matches.")
+            logger.info(
+                f"[KNOWLEDGE_QUERY] Found {len(results['documents'][0])} matches."
+            )
             return context
         except Exception as e:
             logger.error(f"[KNOWLEDGE_ERROR] Query failed: {e}")
@@ -72,6 +75,7 @@ class KnowledgeBase:
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                     self.add_document(content, {"source": filename}, filename)
+
 
 # Global KB instance
 kb = KnowledgeBase()

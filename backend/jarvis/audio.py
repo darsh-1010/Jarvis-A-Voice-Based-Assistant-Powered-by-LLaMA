@@ -1,11 +1,11 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Manages speech recognition and text-to-speech asynchronously using offline models."""
+
 import asyncio
 import io
 import logging
 import wave
-from typing import Optional
 
 import numpy as np
 import sounddevice as sd
@@ -13,7 +13,6 @@ import speech_recognition as sr
 from faster_whisper import WhisperModel
 from kokoro import KPipeline
 
-from jarvis.config import config
 from jarvis.logger import log_action
 
 
@@ -25,7 +24,7 @@ class AudioManager:
         log_action(
             "AUDIO_INIT_START",
             "Initializing offline audio models (Whisper + Kokoro)...",
-            "I'm warming up my voice and hearing modules."
+            "I'm warming up my voice and hearing modules.",
         )
 
         # Initialize Faster-Whisper (Optimized for CPU)
@@ -34,11 +33,7 @@ class AudioManager:
         # short voice commands. Greedy decoding (beam_size=1) is ~40% faster with
         # negligible accuracy loss for typical voice inputs under 10 words.
         try:
-            self.stt_model = WhisperModel(
-                "base.en",
-                device="cpu",
-                compute_type="int8"
-            )
+            self.stt_model = WhisperModel("base.en", device="cpu", compute_type="int8")
             self._beam_size = 1  # Greedy — fastest for real-time voice
         except Exception as e:
             logging.error(f"Failed to load Whisper model: {e}")
@@ -47,7 +42,7 @@ class AudioManager:
 
         # Initialize Kokoro TTS Pipeline
         try:
-            self.tts_pipeline = KPipeline(lang_code='a')  # 'a' for American English
+            self.tts_pipeline = KPipeline(lang_code="a")  # 'a' for American English
         except Exception as e:
             logging.error(f"Failed to load Kokoro TTS: {e}")
             self.tts_pipeline = None
@@ -56,7 +51,7 @@ class AudioManager:
         log_action(
             "AUDIO_INIT_DONE",
             "AudioManager initialized with Faster-Whisper and Kokoro.",
-            "I'm ready to listen and speak naturally."
+            "I'm ready to listen and speak naturally.",
         )
 
     async def speak(self, text: str) -> None:
@@ -69,15 +64,19 @@ class AudioManager:
         if not text or not self.tts_pipeline:
             return
 
-        log_action("AUDIO_SPEAK", f"TTS start (chars={len(text)})", "I'm speaking my response to you.")
+        log_action(
+            "AUDIO_SPEAK",
+            f"TTS start (chars={len(text)})",
+            "I'm speaking my response to you.",
+        )
 
         try:
             # Kokoro generates audio in chunks (generator)
             generator = self.tts_pipeline(
                 text,
-                voice='af_heart',  # Human-sounding female voice
+                voice="af_heart",  # Human-sounding female voice
                 speed=1,
-                split_pattern=r'\n+'
+                split_pattern=r"\n+",
             )
 
             for _, _, audio in generator:
@@ -91,7 +90,7 @@ class AudioManager:
                 "AUDIO_TTS_FAIL",
                 f"TTS Error: {exc}",
                 "I had some trouble speaking naturally.",
-                level=logging.ERROR
+                level=logging.ERROR,
             )
 
     async def listen(self, prompt: str = "Listening...") -> str:
@@ -139,13 +138,19 @@ class AudioManager:
         try:
             with sr.Microphone() as source:
                 if prompt:
-                    log_action("AUDIO_LISTEN", f"STT Active: {prompt}", "I'm listening for your command.")
+                    log_action(
+                        "AUDIO_LISTEN",
+                        f"STT Active: {prompt}",
+                        "I'm listening for your command.",
+                    )
 
                 # Adjust for ambient noise
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
                 try:
-                    audio_data = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
+                    audio_data = self.recognizer.listen(
+                        source, timeout=5, phrase_time_limit=10
+                    )
 
                     # FIX: Convert WAV bytes directly to numpy float32 — no temp file needed.
                     # faster-whisper accepts ndarray natively; this eliminates 100–300ms of
@@ -160,7 +165,11 @@ class AudioManager:
                     command = " ".join([segment.text for segment in segments]).strip()
 
                     if command:
-                        log_action("AUDIO_RECOGNIZED", f"Text: '{command}'", f"I heard: '{command}'")
+                        log_action(
+                            "AUDIO_RECOGNIZED",
+                            f"Text: '{command}'",
+                            f"I heard: '{command}'",
+                        )
                         return command.lower()
 
                 except sr.WaitTimeoutError:
@@ -170,14 +179,14 @@ class AudioManager:
                         "AUDIO_STT_FAIL",
                         f"STT Error: {exc}",
                         "I couldn't quite catch that.",
-                        level=logging.ERROR
+                        level=logging.ERROR,
                     )
         except Exception as exc:
             log_action(
                 "AUDIO_HARDWARE",
                 f"Hardware error: {exc}",
                 "I can't find a microphone to listen with.",
-                level=logging.WARNING
+                level=logging.WARNING,
             )
 
         return ""

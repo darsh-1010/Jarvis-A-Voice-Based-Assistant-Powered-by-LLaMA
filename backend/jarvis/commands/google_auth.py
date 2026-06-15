@@ -7,6 +7,7 @@ Centralises the token-acquisition and refresh logic so Calendar and Gmail
 can reuse one code path instead of duplicating it — eliminating the
 duplicate-code lint violation and making credential rotation a single-file change.
 """
+
 import logging
 import os
 
@@ -14,7 +15,9 @@ from jarvis.config import config
 from jarvis.logger import log_action
 
 
-def build_google_service(api_name: str, api_version: str, scopes: list[str], token_path: str):
+def build_google_service(
+    api_name: str, api_version: str, scopes: list[str], token_path: str
+):
     """
     Build and return an authenticated Google API service client.
 

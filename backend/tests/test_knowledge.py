@@ -17,7 +17,7 @@ class TestKnowledgeBase:
         mock_client.get_or_create_collection.return_value = mock_collection
         mocker.patch("jarvis.memory.knowledge.chromadb.PersistentClient",
                      return_value=mock_client)
-        mocker.patch("jarvis.memory.knowledge.embedding_functions.DefaultEmbeddingFunction",
+        mocker.patch("chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction",
                      return_value=MagicMock())
         mocker.patch("jarvis.memory.knowledge.config.vector_db_path", "./test_db")
         return mock_client, mock_collection

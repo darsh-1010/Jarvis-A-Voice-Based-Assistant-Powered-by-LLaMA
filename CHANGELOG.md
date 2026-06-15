@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-15] — Self-Improvement Loop & Security Guardrails
+### Added
+- **Self-Improvement Loop**: Added `TelemetryStore` (`backend/jarvis/memory/telemetry.py`) to log tool executions in a SQLite database, `ReflectionEngine` (`backend/jarvis/memory/reflection.py`) to research task failures via LLM and web search and generate patches, and `GuardrailEngine` (`backend/jarvis/security/guardrails.py`) to validate and apply code patches.
+- **5-Layer Security Guardrail Pipeline**:
+  - Layer 1: No-go zone directory and filename checks to prevent path traversal and modifications outside of `jarvis/commands/`.
+  - Layer 2: AST static analysis to block dangerous constructs (like `eval`, `exec`, shell command execution, or dangerous imports like `os`, `subprocess`).
+  - Layer 3: Rate limits and cooldown constraints (minimum 60-min gap, max 3 patches/day per tool).
+  - Layer 4: Sibling temp-file atomic write and `py_compile` checks with automatic fallback/recovery.
+  - Layer 5: CHANGELOG append and SQLite audit logging.
+- **New API Endpoints**: Endpoints for telemetry stats, reflections list, patches list, and manual patch rollback.
+
+### Changed
+- Instrumented `ToolRegistry` (`backend/jarvis/commands/registry.py`) to collect execution metrics and invoke the self-improvement loop in the background.
+- Cleaned up typing errors, imports, and MD5 usage in `intent.py` to pass strict `pyright` and `bandit` verification gates.
+
 ## [2026-05-10] — AI Intent Routing
 ### Added
 - **`jarvis/intent.py`**: New `IntentRouter` class — uses the active LLM provider to classify any

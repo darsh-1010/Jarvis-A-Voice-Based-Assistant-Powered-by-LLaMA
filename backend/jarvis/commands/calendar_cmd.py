@@ -7,11 +7,13 @@ Uses a shared OAuth2 helper for token management. On first run, a browser
 window opens once to grant access; subsequent runs use the cached token.
 Requires GOOGLE_CREDENTIALS_PATH to point to a downloaded OAuth2 JSON.
 """
+
 import datetime
 import logging
 
 from jarvis.commands.google_auth import build_google_service
 from jarvis.commands.registry import registry
+from jarvis.config import config
 from jarvis.logger import log_action
 
 
@@ -45,7 +47,11 @@ def list_calendar_events(max_results: int = 5) -> str:
     if not service:
         return "Google Calendar is not set up, sir. Please add your credentials file."
 
-    log_action("CALENDAR_LIST", f"Fetching {max_results} upcoming events", "Checking your calendar.")
+    log_action(
+        "CALENDAR_LIST",
+        f"Fetching {max_results} upcoming events",
+        "Checking your calendar.",
+    )
 
     try:
         now_iso = datetime.datetime.utcnow().isoformat() + "Z"
@@ -75,7 +81,9 @@ def list_calendar_events(max_results: int = 5) -> str:
 
         event_list = ", and ".join(summaries)
         count = len(items)
-        return f"You have {count} upcoming event{'s' if count > 1 else ''}: {event_list}."
+        return (
+            f"You have {count} upcoming event{'s' if count > 1 else ''}: {event_list}."
+        )
 
     except Exception as exc:
         log_action(
@@ -125,13 +133,20 @@ def create_calendar_event(
 
         event_body = {
             "summary": title,
-            "start": {"dateTime": start_dt.isoformat(), "timeZone": config.user_timezone},
+            "start": {
+                "dateTime": start_dt.isoformat(),
+                "timeZone": config.user_timezone,
+            },
             "end": {"dateTime": end_dt.isoformat(), "timeZone": config.user_timezone},
         }
 
-        created = service.events().insert(calendarId="primary", body=event_body).execute()
+        created = (
+            service.events().insert(calendarId="primary", body=event_body).execute()
+        )
         event_id = created.get("id", "unknown")
-        log_action("CALENDAR_CREATED", f"Event ID: {event_id}", f"Event '{title}' created.")
+        log_action(
+            "CALENDAR_CREATED", f"Event ID: {event_id}", f"Event '{title}' created."
+        )
         return f"Done, sir. I've added '{title}' to your calendar on {date} at {start_time}."
 
     except ValueError as exc:

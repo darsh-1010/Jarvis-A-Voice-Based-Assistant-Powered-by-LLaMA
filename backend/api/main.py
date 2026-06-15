@@ -1,11 +1,13 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """FastAPI backend for Jarvis v3 (Async Zenith)."""
+import asyncio
 import datetime
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import psutil
 from fastapi import FastAPI, HTTPException, Request
@@ -30,6 +32,9 @@ from jarvis.commands.registry import registry
 from jarvis.config import config
 from jarvis.intent import IntentRouter
 from jarvis.logger import log_action
+from jarvis.memory.reflection import ReflectionEngine
+from jarvis.memory.telemetry import TelemetryStore
+from jarvis.security.guardrails import GuardrailEngine
 
 
 # ──────────────────────────────────────────────
@@ -48,6 +53,20 @@ async def lifespan(app: FastAPI):
     log_action("API_STARTUP", "Initializing BrainManager and IntentRouter.", "Jarvis API starting up.")
     app.state.brain = BrainManager()
     app.state.intent_router = IntentRouter(app.state.brain)
+
+    # Wire the self-improvement loop into the API runtime.
+    app.state.telemetry = TelemetryStore(config.telemetry_db_path)
+    app.state.guardrail = GuardrailEngine(app.state.telemetry)
+    app.state.reflection = ReflectionEngine(
+        guardrail_engine=app.state.guardrail,
+        telemetry_store=app.state.telemetry,
+        backup_dir=config.optimizer_backup_dir,
+    )
+    app.state.reflection.set_brain(app.state.brain)
+    app.state.brain.set_telemetry_store(app.state.telemetry)
+    registry.set_telemetry(app.state.telemetry)
+    registry.set_reflection_engine(app.state.reflection)
+
     yield
     log_action("API_SHUTDOWN", "Jarvis API shutting down.", "API offline.")
 
@@ -244,3 +263,121 @@ async def update_settings(update: SettingsUpdate) -> dict:
     # Note: In V3.0, Pydantic Settings are loaded from env at startup.
     # For dynamic updates, a more complex state manager is needed.
     return {"status": "success", "message": "Settings updated locally (simulated)"}
+
+
+# ──────────────────────────────────────────────
+# Self-Improvement Memory Endpoints
+# ──────────────────────────────────────────────
+
+@app.get("/memory/stats")
+async def get_memory_stats(request: Request) -> dict:
+    """
+    Return per-tool execution stats: total calls, failure count, avg latency.
+
+    Returns:
+        dict: Tool performance summary from the telemetry store.
+    """
+    log_action("API_MEMORY_STATS", "GET /memory/stats", "Fetching tool performance stats.")
+    brain: BrainManager = request.app.state.brain
+    stats = await brain.get_performance_summary()
+    return {"status": "ok", "data": stats}
+
+
+@app.get("/memory/reflections")
+async def get_reflections(request: Request) -> dict:
+    """
+    Return past self-reflection reports stored in ChromaDB.
+
+    Returns:
+        dict: List of reflection documents, most recent first.
+    """
+    log_action(
+        "API_MEMORY_REFLECTIONS",
+        "GET /memory/reflections",
+        "Fetching self-reflection history."
+    )
+    try:
+        from jarvis.memory.knowledge import kb
+        results = await asyncio.to_thread(
+            kb.query,
+            "self_reflection optimization improvement",
+            5,
+        )
+        return {"status": "ok", "data": results}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/memory/patches")
+async def get_patch_log(request: Request) -> dict:
+    """
+    Return the full autonomous code-patch audit log.
+
+    Returns:
+        dict: List of patch records with guardrail results and backup paths.
+    """
+    log_action("API_MEMORY_PATCHES", "GET /memory/patches", "Fetching patch audit log.")
+    telemetry: TelemetryStore = request.app.state.telemetry
+    patches = await telemetry.get_all_patches()
+    return {"status": "ok", "data": patches}
+
+
+@app.post("/memory/patches/{patch_id}/rollback")
+async def rollback_patch(patch_id: int, request: Request) -> dict:
+    """
+    Restore the pre-patch backup for the given patch ID.
+
+    Args:
+        patch_id: The integer ID from the patch_log table.
+
+    Returns:
+        dict: Success status and the restored file path.
+    """
+    log_action(
+        "API_MEMORY_ROLLBACK",
+        f"POST /memory/patches/{patch_id}/rollback",
+        f"Rolling back patch ID {patch_id}."
+    )
+    telemetry: TelemetryStore = request.app.state.telemetry
+    backup_path = await telemetry.get_patch_backup_path(patch_id)
+    if not backup_path:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No backup found for patch ID {patch_id}."
+        )
+
+    import shutil
+    from pathlib import Path
+    src = Path(backup_path)
+    if not src.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Backup file missing on disk: {backup_path}"
+        )
+
+    # Derive original target path from patch_log
+    patches = await telemetry.get_all_patches()
+    target_path: Optional[str] = None
+    for entry in patches:
+        if entry.get("id") == patch_id:
+            target_path = entry.get("target_file")
+            break
+
+    if not target_path:
+        raise HTTPException(
+            status_code=404, detail="Original target file record not found."
+        )
+
+    try:
+        await asyncio.to_thread(shutil.copy2, str(src), target_path)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Rollback failed: {exc}"
+        ) from exc
+
+    log_action(
+        "API_ROLLBACK_DONE",
+        f"Restored: {target_path} from {backup_path}",
+        f"Rollback complete for patch {patch_id}."
+    )
+    return {"status": "ok", "restored": target_path, "from_backup": backup_path}

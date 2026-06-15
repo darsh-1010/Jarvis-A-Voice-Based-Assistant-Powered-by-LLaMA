@@ -13,6 +13,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from jarvis.audio import AudioManager
 from jarvis.brain import BrainManager
+from jarvis.config import config
+from jarvis.intent import IntentRouter
+from jarvis.logger import log_action
+from jarvis.memory.reflection import ReflectionEngine
+from jarvis.memory.telemetry import TelemetryStore
+from jarvis.security.guardrails import GuardrailEngine
 import jarvis.commands.system        # noqa: F401 — side-effect: registers system tools
 import jarvis.commands.media         # noqa: F401 — side-effect: registers media tools
 import jarvis.commands.web           # noqa: F401 — side-effect: registers web tools
@@ -23,10 +29,6 @@ import jarvis.commands.productivity  # noqa: F401 — side-effect: registers pro
 import jarvis.commands.calendar_cmd  # noqa: F401 — side-effect: registers calendar tools
 import jarvis.commands.gmail_cmd     # noqa: F401 — side-effect: registers gmail tools
 from jarvis.commands.registry import registry
-from jarvis.config import config
-from jarvis.intent import IntentRouter
-from jarvis.logger import log_action
-
 
 # ──────────────────────────────────────────────
 # Result Enrichment Helpers
@@ -133,11 +135,32 @@ class Jarvis:
     """The Jarvis AI Assistant controller (Async)."""
 
     def __init__(self):
-        """Initialize all managers and attach the intent router."""
+        """Initialize all managers, attach the intent router, and wire the self-improvement loop."""
         self.audio = AudioManager()
         self.brain = BrainManager()
         self.intent_router = IntentRouter(self.brain)
         self.is_running = True
+
+        # Self-improvement loop — initialised in dependency order.
+        self.telemetry = TelemetryStore(config.telemetry_db_path)
+        self.guardrail = GuardrailEngine(self.telemetry)
+        self.reflection = ReflectionEngine(
+            guardrail_engine=self.guardrail,
+            telemetry_store=self.telemetry,
+            backup_dir=config.optimizer_backup_dir,
+        )
+        self.reflection.set_brain(self.brain)
+        self.brain.set_telemetry_store(self.telemetry)
+
+        # Inject telemetry + reflection into the global registry.
+        registry.set_telemetry(self.telemetry)
+        registry.set_reflection_engine(self.reflection)
+
+        log_action(
+            "SYSTEM_INIT",
+            "Self-improvement loop active.",
+            "Self-optimisation loop is online.",
+        )
 
     async def greet(self) -> None:
         """Greet the user based on the time of day."""

@@ -3,7 +3,6 @@ import logging
 
 # FIX: Migrated from deprecated google-generativeai to google-genai SDK
 from google import genai as google_genai
-from google.genai import types as genai_types
 import pyautogui
 
 from jarvis.commands.registry import registry
@@ -11,7 +10,10 @@ from jarvis.config import config
 from jarvis.logger import log_action
 
 
-@registry.register(name="analyze_screen", description="Take a screenshot and describe what is currently on the screen.")
+@registry.register(
+    name="analyze_screen",
+    description="Take a screenshot and describe what is currently on the screen.",
+)
 async def analyze_screen() -> str:
     """
     Take a screenshot and analyze it with Gemini Vision.
@@ -22,7 +24,7 @@ async def analyze_screen() -> str:
     log_action(
         "VISION_SCREEN",
         "PyAutoGUI capture to temp_vision.png",
-        "I'm taking a look at your screen to see what's happening."
+        "I'm taking a look at your screen to see what's happening.",
     )
 
     # 1. Capture screen
@@ -39,6 +41,7 @@ async def analyze_screen() -> str:
 
         # Open image for SDK
         from PIL import Image
+
         img = Image.open(path)
 
         prompt = (
@@ -55,15 +58,15 @@ async def analyze_screen() -> str:
         log_action(
             "VISION_SCREEN",
             "Gemini vision analysis complete.",
-            "I've finished looking at your screen."
+            "I've finished looking at your screen.",
         )
-        return response.text
+        return response.text or ""
     except Exception as exc:
         log_action(
             "VISION_FAIL",
             f"Vision error: {exc}",
             "I encountered an error while trying to see your screen.",
-            level=logging.ERROR
+            level=logging.ERROR,
         )
         return f"I encountered an error while analyzing the screen: {exc}"
 

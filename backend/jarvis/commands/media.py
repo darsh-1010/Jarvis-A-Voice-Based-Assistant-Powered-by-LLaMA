@@ -1,16 +1,25 @@
 """Media-related commands for Jarvis (Spotify, YouTube music, Camera)."""
+
 import logging
 import random
 import time
+import typing
 import webbrowser
 
 import cv2
+
+if typing.TYPE_CHECKING:
+    # Resolve pyright issues with OpenCV dynamic attributes
+    cv2: typing.Any = cv2
 
 from jarvis.commands.registry import registry
 from jarvis.logger import log_action
 
 
-@registry.register(name="search_spotify_web", description="Search for a song or artist on the Spotify web player.")
+@registry.register(
+    name="search_spotify_web",
+    description="Search for a song or artist on the Spotify web player.",
+)
 def search_spotify_web(song_name: str) -> None:
     """
     Search for a song on Spotify.
@@ -21,25 +30,27 @@ def search_spotify_web(song_name: str) -> None:
     log_action(
         "MEDIA_SPOTIFY",
         f"Search: {song_name}",
-        f"I'm searching Spotify for '{song_name}'."
+        f"I'm searching Spotify for '{song_name}'.",
     )
     search_url = f"https://open.spotify.com/search/{song_name}"
     webbrowser.open(search_url)
 
 
-@registry.register(name="play_random_music", description="Play a random favourite song from YouTube.")
+@registry.register(
+    name="play_random_music", description="Play a random favourite song from YouTube."
+)
 def play_random_music() -> None:
     """Play a random favorite song on YouTube."""
     songs = [
         "https://www.youtube.com/watch?v=v-icNVDbVLk",
         "https://www.youtube.com/watch?v=pxCWiYFkvTg",
-        "https://www.youtube.com/watch?v=DCkRJ8BDRQU"
+        "https://www.youtube.com/watch?v=DCkRJ8BDRQU",
     ]
     song = random.choice(songs)
     log_action(
         "MEDIA_YOUTUBE",
         "Random selection from favorites",
-        "I'm playing a random favourite song for you."
+        "I'm playing a random favourite song for you.",
     )
     webbrowser.open(song)
 
@@ -59,7 +70,7 @@ class CameraManager:
         log_action(
             "MEDIA_CAMERA",
             "CV2 VideoCapture(0) active",
-            "I'm opening your camera live feed."
+            "I'm opening your camera live feed.",
         )
 
         while self.is_open:
@@ -70,7 +81,7 @@ class CameraManager:
 
             # Press 'q' or 'Esc' to close
             key = cv2.waitKey(1) & 0xFF
-            if key in (ord('q'), 27):
+            if key in (ord("q"), 27):
                 self.close()
                 break
 
@@ -83,7 +94,7 @@ class CameraManager:
             log_action(
                 "MEDIA_CAMERA",
                 "CV2 release and cleanup",
-                "I've closed the camera live feed."
+                "I've closed the camera live feed.",
             )
 
     def take_photo(self) -> str:
@@ -96,7 +107,7 @@ class CameraManager:
         log_action(
             "MEDIA_CAMERA",
             "CV2 Capture (5s delay)",
-            "I'm taking a photo for you in 5 seconds."
+            "I'm taking a photo for you in 5 seconds.",
         )
         # Delay allows the user to compose the shot
         time.sleep(5)
@@ -110,7 +121,7 @@ class CameraManager:
                 "MEDIA_CAMERA",
                 f"Saved: {file_path}",
                 "I've saved the photo to your project folder.",
-                level=logging.INFO
+                level=logging.INFO,
             )
         cap.release()
         return file_path

@@ -1,6 +1,7 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Standardized logging configuration for Jarvis."""
+
 import functools
 import logging
 import sys
@@ -25,8 +26,8 @@ def setup_logger(logger_name: str = "jarvis") -> logging.Logger:
 
         # Format: [ACTION] Key: value | Key: value
         formatter = logging.Formatter(
-            '[%(levelname)s] Time: %(asctime)s | Module: %(name)s | Message: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "[%(levelname)s] Time: %(asctime)s | Module: %(name)s | Message: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
         # Stream handler for console output
@@ -65,6 +66,7 @@ def time_function(func):
     Returns:
         Callable: The wrapped function.
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.time()
@@ -74,7 +76,8 @@ def time_function(func):
             "PERFORMANCE",
             f"Function {func.__name__} executed in {duration:.2f}s",
             f"Finished {func.__name__.replace('_', ' ')} logic.",
-            level=logging.DEBUG
+            level=logging.DEBUG,
         )
         return result
+
     return wrapper

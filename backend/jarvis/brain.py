@@ -1,6 +1,7 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Manages AI logic with async providers, sliding memory, and token tracking."""
+
 import asyncio
 import json
 import logging
@@ -35,6 +36,7 @@ class OllamaProvider(BaseProvider):
         """Initialize Ollama provider with LangChain."""
         from langchain_ollama import OllamaLLM
         from langchain_core.prompts import ChatPromptTemplate
+
         self.model = OllamaLLM(model=config.ollama_model)
         # Structured sections + recency-effect reminder at the end improve
         # response quality and format adherence on smaller local models.
@@ -54,11 +56,13 @@ class OllamaProvider(BaseProvider):
 
     def _invoke(self, question: str, context: str) -> str:
         """Synchronous invocation for threading."""
-        return self.chain.invoke({
-            "persona": config.jarvis_persona,
-            "context": context if context.strip() else "No additional context.",
-            "question": question
-        })
+        return self.chain.invoke(
+            {
+                "persona": config.jarvis_persona,
+                "context": context if context.strip() else "No additional context.",
+                "question": question,
+            }
+        )
 
 
 class GeminiProvider(BaseProvider):
@@ -74,8 +78,8 @@ class GeminiProvider(BaseProvider):
         self._model_id = config.gemini_model
         self._gen_config = genai_types.GenerateContentConfig(
             system_instruction=config.jarvis_persona,
-            max_output_tokens=400,   # Shorter cap keeps TTS responses punchy
-            temperature=0.65,         # Slightly lower for more deterministic answers
+            max_output_tokens=400,  # Shorter cap keeps TTS responses punchy
+            temperature=0.65,  # Slightly lower for more deterministic answers
             top_p=0.9,
         )
 
@@ -94,7 +98,7 @@ class GeminiProvider(BaseProvider):
             ),
             timeout=timeout,
         )
-        return response.text
+        return response.text or ""
 
 
 class OpenRouterProvider(BaseProvider):
@@ -105,8 +109,7 @@ class OpenRouterProvider(BaseProvider):
         if not config.openrouter_api_key:
             raise ValueError("OPENROUTER_API_KEY missing")
         self.client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=config.openrouter_api_key
+            base_url="https://openrouter.ai/api/v1", api_key=config.openrouter_api_key
         )
 
     async def generate(self, question: str, context: str, timeout: int = 20) -> str:
@@ -114,29 +117,46 @@ class OpenRouterProvider(BaseProvider):
         # Using the messages array with explicit system/user roles is significantly
         # more reliable than concatenating everything into a single user message.
         context_block = context.strip() if context.strip() else "No additional context."
-        user_content = f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        user_content = (
+            f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        )
         completion = await self.client.chat.completions.create(
             model=config.openrouter_model,
             messages=[
                 {"role": "system", "content": config.jarvis_persona},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content},
             ],
             max_tokens=400,
             temperature=0.65,
-            timeout=timeout
+            timeout=timeout,
         )
-        return completion.choices[0].message.content
+        return completion.choices[0].message.content or ""
 
 
 class BrainManager:
     """Manages AI logic with async providers, sliding memory, and token tracking."""
 
     # Short/casual queries that do not benefit from RAG context lookup.
-    _KB_SKIP_WORDS = frozenset({
-        "hello", "hi", "hey", "thanks", "thank", "you", "ok", "okay",
-        "yes", "no", "bye", "goodbye", "stop", "pause", "resume",
-    })
-    _KB_MIN_WORDS = 5   # Skip RAG if query is fewer than this many words
+    _KB_SKIP_WORDS = frozenset(
+        {
+            "hello",
+            "hi",
+            "hey",
+            "thanks",
+            "thank",
+            "you",
+            "ok",
+            "okay",
+            "yes",
+            "no",
+            "bye",
+            "goodbye",
+            "stop",
+            "pause",
+            "resume",
+        }
+    )
+    _KB_MIN_WORDS = 5  # Skip RAG if query is fewer than this many words
 
     def __init__(self):
         """Initialize BrainManager with providers and Redis."""
@@ -152,36 +172,46 @@ class BrainManager:
                     host=config.redis_host,
                     port=config.redis_port,
                     db=config.redis_db,
-                    decode_responses=True
+                    decode_responses=True,
                 )
                 self.redis.ping()
                 log_action(
                     "BRAIN_MEMORY",
                     f"Connected to Redis at {config.redis_host}:{config.redis_port}",
-                    "Connected to my long-term memory store."
+                    "Connected to my long-term memory store.",
                 )
             except Exception as e:
                 log_action(
                     "BRAIN_MEMORY",
                     f"Redis connection failed: {e}",
                     "Couldn't connect to Redis; using local memory instead.",
-                    level=logging.WARNING
+                    level=logging.WARNING,
                 )
 
         self.local_history: List[str] = []
+        # Telemetry store injected after construction via set_telemetry_store().
+        self._telemetry: Optional[Any] = None
 
         # Warm up the knowledge base at startup
         try:
             from jarvis.memory.knowledge import kb
+
             kb.ingest_folder(config.knowledge_dir)
         except Exception as e:
-            log_action("BRAIN_KB", f"KB ingest skipped: {e}", "Knowledge base not loaded.", level=logging.WARNING)
+            log_action(
+                "BRAIN_KB",
+                f"KB ingest skipped: {e}",
+                "Knowledge base not loaded.",
+                level=logging.WARNING,
+            )
 
     async def _get_history(self) -> List[str]:
         """Retrieve conversation history from Redis or local list."""
         if self.redis:
             hist = await asyncio.to_thread(self.redis.get, "jarvis_history")
-            return json.loads(hist) if hist else []
+            if isinstance(hist, (str, bytes, bytearray)):
+                return json.loads(hist)
+            return []
         return self.local_history
 
     async def _save_history(self, history: List[str]):
@@ -203,7 +233,9 @@ class BrainManager:
             token_count += t
 
         if self.redis:
-            await asyncio.to_thread(self.redis.set, "jarvis_history", json.dumps(trimmed))
+            await asyncio.to_thread(
+                self.redis.set, "jarvis_history", json.dumps(trimmed)
+            )
         else:
             self.local_history = trimmed
 
@@ -244,7 +276,7 @@ class BrainManager:
                 "BRAIN_INIT",
                 f"Failed to initialize {name}: {e}",
                 f"I had some trouble starting my {name} module.",
-                level=logging.ERROR
+                level=logging.ERROR,
             )
             return None
 
@@ -269,6 +301,7 @@ class BrainManager:
         # FIX: Only query the knowledge base for substantive queries.
         # Greetings and short commands skip RAG entirely, saving 50–300ms.
         from jarvis.memory.knowledge import kb
+
         if self._should_query_kb(question):
             kb_context = await asyncio.to_thread(kb.query, question)
         else:
@@ -277,7 +310,10 @@ class BrainManager:
         history = await self._get_history()
 
         # Combine KB context and conversation history
-        full_context = f"KNOWLEDGE BASE:\n{kb_context}\n\nCONVERSATION HISTORY:\n" + "\n".join(history)
+        full_context = (
+            f"KNOWLEDGE BASE:\n{kb_context}\n\nCONVERSATION HISTORY:\n"
+            + "\n".join(history)
+        )
 
         last_error = ""
 
@@ -292,13 +328,15 @@ class BrainManager:
                 duration = time.time() - start_time
 
                 # Token management
-                tokens_in = self._count_tokens(question + full_context + config.jarvis_persona)
+                tokens_in = self._count_tokens(
+                    question + full_context + config.jarvis_persona
+                )
                 tokens_out = self._count_tokens(response)
 
                 log_action(
                     "BRAIN_USAGE",
                     f"Provider: {name} | In: {tokens_in} | Out: {tokens_out} | Time: {duration:.2f}s",
-                    f"I've generated a response using my {name} module."
+                    f"I've generated a response using my {name} module.",
                 )
 
                 # Update history
@@ -312,7 +350,7 @@ class BrainManager:
                     "BRAIN_TIMEOUT",
                     f"Provider {name} timed out",
                     f"My {name} module timed out, trying an alternative brain.",
-                    level=logging.WARNING
+                    level=logging.WARNING,
                 )
                 last_error = f"{name} timed out"
                 continue
@@ -321,7 +359,7 @@ class BrainManager:
                     "BRAIN_FALLBACK",
                     f"Provider {name} failed: {exc}",
                     f"My {name} module failed, trying an alternative brain.",
-                    level=logging.WARNING
+                    level=logging.WARNING,
                 )
                 last_error = str(exc)
                 continue
@@ -333,7 +371,7 @@ class BrainManager:
         log_action(
             "BRAIN_REFLECTION",
             f"Analyzing error for: {command} | Error: {error}",
-            "I'm analysing what went wrong so I can self-correct."
+            "I'm analysing what went wrong so I can self-correct.",
         )
         # Structured error analysis prompt — gives the LLM enough context to
         # diagnose the root cause and suggest an actionable fix, not just repeat the error.
@@ -345,3 +383,24 @@ class BrainManager:
             f"Error details: '{error}'"
         )
         return await self.generate_response(prompt)
+
+    def set_telemetry_store(self, store) -> None:
+        """
+        Inject the TelemetryStore for performance reporting.
+
+        Args:
+            store: Initialised TelemetryStore instance.
+        """
+        self._telemetry = store
+
+    async def get_performance_summary(self) -> List[dict]:
+        """
+        Return per-tool aggregated failure stats for the /memory/stats endpoint.
+
+        Returns:
+            List of dicts with tool_name, total, failures, avg_ms.
+            Returns an empty list if telemetry is unavailable.
+        """
+        if self._telemetry is None:
+            return []
+        return await self._telemetry.get_failure_stats()

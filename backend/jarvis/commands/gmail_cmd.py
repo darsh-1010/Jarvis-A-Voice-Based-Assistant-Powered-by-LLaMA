@@ -6,6 +6,7 @@ Gmail commands for Jarvis.
 Reads unread inbox subjects and sends emails via OAuth2.
 Uses the shared google_auth helper to eliminate duplicate auth code.
 """
+
 import base64
 import logging
 from email.mime.text import MIMEText
@@ -48,7 +49,11 @@ def read_inbox(max_results: int = _DEFAULT_INBOX_COUNT) -> str:
     if not service:
         return "Gmail is not configured, sir. Please add your Google credentials file."
 
-    log_action("GMAIL_READ", f"Fetching {max_results} unread messages", "Checking your Gmail inbox.")
+    log_action(
+        "GMAIL_READ",
+        f"Fetching {max_results} unread messages",
+        "Checking your Gmail inbox.",
+    )
 
     try:
         result = (
@@ -64,9 +69,16 @@ def read_inbox(max_results: int = _DEFAULT_INBOX_COUNT) -> str:
 
         subjects = []
         for msg in messages:
-            detail = service.users().messages().get(userId="me", id=msg["id"], format="metadata").execute()
+            detail = (
+                service.users()
+                .messages()
+                .get(userId="me", id=msg["id"], format="metadata")
+                .execute()
+            )
             headers = detail.get("payload", {}).get("headers", [])
-            subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No subject")
+            subject = next(
+                (h["value"] for h in headers if h["name"] == "Subject"), "No subject"
+            )
             subjects.append(f"'{subject}'")
 
         count = len(subjects)
@@ -104,7 +116,11 @@ def send_email(to: str, subject: str, body: str) -> str:
 
     # Mask recipient in logs — never log full email addresses per security policy
     masked_to = f"***{to[-10:]}" if len(to) > 10 else "***"
-    log_action("GMAIL_SEND", f"To: {masked_to} | Subject: '{subject}'", f"Sending email '{subject}'.")
+    log_action(
+        "GMAIL_SEND",
+        f"To: {masked_to} | Subject: '{subject}'",
+        f"Sending email '{subject}'.",
+    )
 
     try:
         mime_message = MIMEText(body)

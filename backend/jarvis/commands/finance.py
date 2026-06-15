@@ -1,6 +1,7 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Finance commands for Jarvis — stocks (Alpha Vantage) and crypto (CoinGecko)."""
+
 import logging
 
 import requests
@@ -42,6 +43,7 @@ _COIN_ID_MAP: dict[str, str] = {
 # Crypto
 # ──────────────────────────────────────────────
 
+
 @registry.register(
     name="get_crypto_price",
     description="Get the current price of a cryptocurrency (e.g. Bitcoin, Ethereum).",
@@ -58,7 +60,9 @@ def get_crypto_price(coin: str = "bitcoin") -> str:
     """
     coin_key = coin.lower().strip()
     coin_id = _COIN_ID_MAP.get(coin_key, coin_key)
-    log_action("FINANCE_CRYPTO", f"Coin: {coin_id}", f"Fetching live price for {coin_id}.")
+    log_action(
+        "FINANCE_CRYPTO", f"Coin: {coin_id}", f"Fetching live price for {coin_id}."
+    )
 
     try:
         response = requests.get(
@@ -89,6 +93,7 @@ def get_crypto_price(coin: str = "bitcoin") -> str:
 # Stocks — Alpha Vantage
 # ──────────────────────────────────────────────
 
+
 def _requires_av_key() -> str | None:
     """Return an error message if the Alpha Vantage key is missing, else None."""
     if not config.alpha_vantage_api_key:
@@ -115,12 +120,18 @@ def get_stock_price(symbol: str) -> str:
         return error
 
     symbol = symbol.upper().strip()
-    log_action("FINANCE_STOCK", f"Symbol: {symbol}", f"Fetching live price for {symbol}.")
+    log_action(
+        "FINANCE_STOCK", f"Symbol: {symbol}", f"Fetching live price for {symbol}."
+    )
 
     try:
         response = requests.get(
             _AV_BASE,
-            params={"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": config.alpha_vantage_api_key},
+            params={
+                "function": "GLOBAL_QUOTE",
+                "symbol": symbol,
+                "apikey": config.alpha_vantage_api_key,
+            },
             timeout=_REQUEST_TIMEOUT,
         )
         quote = response.json().get("Global Quote", {})
@@ -158,10 +169,15 @@ def get_stock_history(symbol: str, period: str = "5d") -> str:
         A spoken-ready summary of recent price history.
     """
     symbol = symbol.upper().strip()
-    log_action("FINANCE_HISTORY", f"Symbol: {symbol} | Period: {period}", f"Fetching price history for {symbol}.")
+    log_action(
+        "FINANCE_HISTORY",
+        f"Symbol: {symbol} | Period: {period}",
+        f"Fetching price history for {symbol}.",
+    )
 
     try:
         import yfinance as yf  # Imported locally — large dependency, only loaded on demand
+
         ticker = yf.Ticker(symbol)
         history = ticker.history(period=period)
 

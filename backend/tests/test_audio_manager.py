@@ -2,6 +2,7 @@ import asyncio
 import logging
 import pytest
 from unittest.mock import MagicMock, patch
+import numpy as np
 import speech_recognition as sr
 
 from jarvis.audio import AudioManager
@@ -100,25 +101,20 @@ async def test_listen_success(audio_manager, mock_sr_mic, mocker):
     mocker.patch.object(audio_manager.recognizer, "adjust_for_ambient_noise")
     mocker.patch.object(audio_manager.recognizer, "listen", return_value=mock_audio_data)
     
+    # Mock _wav_bytes_to_float32 to avoid real WAV parsing in test
+    fake_array = np.zeros(100, dtype=np.float32)
+    mocker.patch.object(audio_manager, "_wav_bytes_to_float32", return_value=fake_array)
+
     # Mock Faster-Whisper transcribe to return fake segments
     mock_segment1 = MagicMock(text="turn on ")
     mock_segment2 = MagicMock(text="the lights")
     audio_manager.stt_model.transcribe.return_value = ([mock_segment1, mock_segment2], None)
     
-    # We also need to mock tempfile so it doesn't try to write fake_wav_data to disk
-    mock_tempfile = mocker.patch("jarvis.audio.tempfile.NamedTemporaryFile")
-    mock_tempfile_instance = mock_tempfile.return_value.__enter__.return_value
-    mock_tempfile_instance.name = "/fake/temp/file.wav"
-    
-    mock_os_remove = mocker.patch("jarvis.audio.os.remove")
-    mock_os_path_exists = mocker.patch("jarvis.audio.os.path.exists", return_value=True)
-    
     command = await audio_manager.listen("Test prompt")
     
     assert command == "turn on  the lights"
     audio_manager.recognizer.listen.assert_called_once_with(mock_source, timeout=5, phrase_time_limit=10)
-    audio_manager.stt_model.transcribe.assert_called_once_with("/fake/temp/file.wav", beam_size=5)
-    mock_os_remove.assert_called_once_with("/fake/temp/file.wav")
+    audio_manager.stt_model.transcribe.assert_called_once_with(fake_array, beam_size=1)
 
 @pytest.mark.asyncio
 async def test_listen_timeout(audio_manager, mock_sr_mic, mocker):

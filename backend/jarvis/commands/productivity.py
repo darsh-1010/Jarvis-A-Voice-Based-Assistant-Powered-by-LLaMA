@@ -6,6 +6,7 @@ Productivity commands for Jarvis.
 Covers: Spotify playback control, Pomodoro focus timer,
 language translation, and the morning briefing composite.
 """
+
 import asyncio
 import datetime
 import logging
@@ -18,6 +19,7 @@ from jarvis.logger import log_action
 # ──────────────────────────────────────────────
 # Spotify Playback
 # ──────────────────────────────────────────────
+
 
 def _get_spotify_client():
     """
@@ -51,7 +53,9 @@ def _spotify_error() -> str:
     return "Spotify credentials are not configured, sir. Please add them to your .env file."
 
 
-@registry.register(name="spotify_play", description="Search for and play a song or artist on Spotify.")
+@registry.register(
+    name="spotify_play", description="Search for and play a song or artist on Spotify."
+)
 def spotify_play(song_name: str) -> str:
     """
     Search Spotify for a track and start playback on the active device.
@@ -66,9 +70,13 @@ def spotify_play(song_name: str) -> str:
     if not client:
         return _spotify_error()
 
-    log_action("SPOTIFY_PLAY", f"Query: {song_name}", f"Searching Spotify for '{song_name}'.")
+    log_action(
+        "SPOTIFY_PLAY", f"Query: {song_name}", f"Searching Spotify for '{song_name}'."
+    )
     try:
         results = client.search(q=song_name, type="track", limit=1)
+        if not results:
+            return f"I couldn't find '{song_name}' on Spotify, sir."
         tracks = results.get("tracks", {}).get("items", [])
         if not tracks:
             return f"I couldn't find '{song_name}' on Spotify, sir."
@@ -78,11 +86,18 @@ def spotify_play(song_name: str) -> str:
         track_title = track["name"]
         artist = track["artists"][0]["name"]
         client.start_playback(uris=[track_uri])
-        log_action("SPOTIFY_PLAY", f"Playing: {track_title} by {artist}", "Playback started.")
+        log_action(
+            "SPOTIFY_PLAY", f"Playing: {track_title} by {artist}", "Playback started."
+        )
         return f"Playing '{track_title}' by {artist} on Spotify, sir."
 
     except Exception as exc:
-        log_action("SPOTIFY_PLAY_ERR", f"Error: {exc}", "Spotify play failed.", level=logging.ERROR)
+        log_action(
+            "SPOTIFY_PLAY_ERR",
+            f"Error: {exc}",
+            "Spotify play failed.",
+            level=logging.ERROR,
+        )
         return "I had trouble starting Spotify playback, sir."
 
 
@@ -98,11 +113,18 @@ def spotify_pause() -> str:
         client.pause_playback()
         return "Spotify paused, sir."
     except Exception as exc:
-        log_action("SPOTIFY_PAUSE_ERR", f"Error: {exc}", "Spotify pause failed.", level=logging.ERROR)
+        log_action(
+            "SPOTIFY_PAUSE_ERR",
+            f"Error: {exc}",
+            "Spotify pause failed.",
+            level=logging.ERROR,
+        )
         return "I couldn't pause Spotify, sir."
 
 
-@registry.register(name="spotify_next", description="Skip to the next track on Spotify.")
+@registry.register(
+    name="spotify_next", description="Skip to the next track on Spotify."
+)
 def spotify_next() -> str:
     """Skip to the next track in the Spotify queue."""
     client = _get_spotify_client()
@@ -114,11 +136,18 @@ def spotify_next() -> str:
         client.next_track()
         return "Skipped to the next track, sir."
     except Exception as exc:
-        log_action("SPOTIFY_NEXT_ERR", f"Error: {exc}", "Spotify skip failed.", level=logging.ERROR)
+        log_action(
+            "SPOTIFY_NEXT_ERR",
+            f"Error: {exc}",
+            "Spotify skip failed.",
+            level=logging.ERROR,
+        )
         return "I couldn't skip the track, sir."
 
 
-@registry.register(name="spotify_previous", description="Go back to the previous track on Spotify.")
+@registry.register(
+    name="spotify_previous", description="Go back to the previous track on Spotify."
+)
 def spotify_previous() -> str:
     """Return to the previous Spotify track."""
     client = _get_spotify_client()
@@ -130,7 +159,12 @@ def spotify_previous() -> str:
         client.previous_track()
         return "Going back to the previous track, sir."
     except Exception as exc:
-        log_action("SPOTIFY_PREV_ERR", f"Error: {exc}", "Spotify previous failed.", level=logging.ERROR)
+        log_action(
+            "SPOTIFY_PREV_ERR",
+            f"Error: {exc}",
+            "Spotify previous failed.",
+            level=logging.ERROR,
+        )
         return "I couldn't go back to the previous track, sir."
 
 
@@ -147,7 +181,9 @@ _POMODORO_BREAK_MINUTES = 5
     name="start_pomodoro",
     description="Start a Pomodoro focus timer. Default is 25 minutes of focus.",
 )
-async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=None) -> str:
+async def start_pomodoro(
+    minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=None
+) -> str:
     """
     Start a Pomodoro-style focus countdown and notify when it expires.
 
@@ -166,11 +202,17 @@ async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=N
     Returns:
         Immediate confirmation that the timer has started.
     """
-    log_action("POMODORO_START", f"Duration: {minutes}m", f"Starting {minutes}-minute Pomodoro timer.")
+    log_action(
+        "POMODORO_START",
+        f"Duration: {minutes}m",
+        f"Starting {minutes}-minute Pomodoro timer.",
+    )
 
     async def _countdown():
         await asyncio.sleep(minutes * 60)
-        log_action("POMODORO_DONE", f"Timer complete: {minutes}m", "Pomodoro session complete.")
+        log_action(
+            "POMODORO_DONE", f"Timer complete: {minutes}m", "Pomodoro session complete."
+        )
         msg = f"Your {minutes}-minute focus session is complete, sir. Time to take a short break."
         if audio_manager is not None:
             # Reuse the already-loaded AudioManager — no model reload needed
@@ -178,6 +220,7 @@ async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=N
         else:
             # Fallback: create a lightweight TTS-only instance (no Whisper)
             from jarvis.audio import AudioManager as _AM
+
             _audio = _AM()
             await _audio.speak(msg)
 
@@ -189,10 +232,11 @@ async def start_pomodoro(minutes: int = _POMODORO_FOCUS_MINUTES, audio_manager=N
 # Language Translation
 # ──────────────────────────────────────────────
 
+
 @registry.register(
     name="translate_text",
     description="Translate a phrase from one language to another. "
-                "Example: translate 'Good morning' to French.",
+    "Example: translate 'Good morning' to French.",
 )
 def translate_text(text: str, target_language: str = "es") -> str:
     """
@@ -212,16 +256,22 @@ def translate_text(text: str, target_language: str = "es") -> str:
     )
     try:
         from deep_translator import GoogleTranslator
-        translated = GoogleTranslator(source="auto", target=target_language).translate(text)
+
+        translated = GoogleTranslator(source="auto", target=target_language).translate(
+            text
+        )
         return f"In {target_language}, '{text}' translates to: '{translated}'."
     except Exception as exc:
-        log_action("TRANSLATE_ERR", f"Error: {exc}", "Translation failed.", level=logging.ERROR)
+        log_action(
+            "TRANSLATE_ERR", f"Error: {exc}", "Translation failed.", level=logging.ERROR
+        )
         return "I had trouble translating that phrase, sir."
 
 
 # ──────────────────────────────────────────────
 # Morning Briefing
 # ──────────────────────────────────────────────
+
 
 def _build_date_string() -> str:
     """Return a human-friendly date and time string for the briefing."""
@@ -243,7 +293,11 @@ def morning_briefing() -> str:
     Returns:
         A multi-sentence spoken briefing string.
     """
-    log_action("BRIEFING_START", "Composing morning briefing", "Preparing your morning briefing.")
+    log_action(
+        "BRIEFING_START",
+        "Composing morning briefing",
+        "Preparing your morning briefing.",
+    )
 
     # Date / time
     date_str = _build_date_string()
@@ -252,19 +306,31 @@ def morning_briefing() -> str:
     # Weather — reuse the registered get_weather function
     try:
         from jarvis.commands.weather import get_weather
+
         weather_str = get_weather()
         parts.append(weather_str)
     except Exception as exc:
-        log_action("BRIEFING_WEATHER_ERR", f"Error: {exc}", "Weather unavailable for briefing.", level=logging.WARNING)
+        log_action(
+            "BRIEFING_WEATHER_ERR",
+            f"Error: {exc}",
+            "Weather unavailable for briefing.",
+            level=logging.WARNING,
+        )
 
     # Top news headline — reuse the registered fetch_latest_news function
     try:
         from jarvis.commands.web import fetch_latest_news
+
         headlines = fetch_latest_news("general")
         if headlines:
             parts.append(f"In the news today: {headlines[0]}.")
     except Exception as exc:
-        log_action("BRIEFING_NEWS_ERR", f"Error: {exc}", "News unavailable for briefing.", level=logging.WARNING)
+        log_action(
+            "BRIEFING_NEWS_ERR",
+            f"Error: {exc}",
+            "News unavailable for briefing.",
+            level=logging.WARNING,
+        )
 
     parts.append("Have a productive day, sir.")
     return " ".join(parts)

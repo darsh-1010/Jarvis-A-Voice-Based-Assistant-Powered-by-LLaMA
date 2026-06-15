@@ -13,7 +13,7 @@ class TestSettings:
         """Config should have correct built-in defaults."""
         from jarvis.config import config
         assert config.ollama_model == "gemma2:2b"
-        assert config.gemini_model == "gemini-1.5-flash"
+        assert config.gemini_model == "gemini-2.0-flash"
         assert config.user_city == "Mumbai"
         assert config.redis_port == 6379
         assert config.use_redis is False

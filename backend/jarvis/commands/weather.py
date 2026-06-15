@@ -1,6 +1,7 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """Weather commands for Jarvis using the OpenWeatherMap API."""
+
 import logging
 
 import requests
@@ -44,7 +45,9 @@ def _fetch_weather_data(city: str, endpoint: str, extra_params: dict) -> dict | 
         **extra_params,
     }
     try:
-        response = requests.get(f"{_OWM_BASE}/{endpoint}", params=params, timeout=_REQUEST_TIMEOUT)
+        response = requests.get(
+            f"{_OWM_BASE}/{endpoint}", params=params, timeout=_REQUEST_TIMEOUT
+        )
         data = response.json()
         if data.get("cod") not in (200, "200"):
             log_action(
@@ -65,7 +68,9 @@ def _fetch_weather_data(city: str, endpoint: str, extra_params: dict) -> dict | 
         return None
 
 
-@registry.register(name="get_weather", description="Get the current weather for a city.")
+@registry.register(
+    name="get_weather", description="Get the current weather for a city."
+)
 def get_weather(city: str = "") -> str:
     """
     Fetch current weather conditions for a city.
@@ -77,7 +82,11 @@ def get_weather(city: str = "") -> str:
         A spoken-ready weather summary string.
     """
     target_city = city.strip() or config.user_city
-    log_action("WEATHER_NOW", f"City: {target_city}", f"Fetching current weather for {target_city}.")
+    log_action(
+        "WEATHER_NOW",
+        f"City: {target_city}",
+        f"Fetching current weather for {target_city}.",
+    )
 
     error = _requires_api_key()
     if error:
@@ -112,7 +121,11 @@ def get_forecast(city: str = "") -> str:
         A spoken-ready forecast summary string.
     """
     target_city = city.strip() or config.user_city
-    log_action("WEATHER_FORECAST", f"City: {target_city}", f"Fetching 3-day forecast for {target_city}.")
+    log_action(
+        "WEATHER_FORECAST",
+        f"City: {target_city}",
+        f"Fetching 3-day forecast for {target_city}.",
+    )
 
     error = _requires_api_key()
     if error:

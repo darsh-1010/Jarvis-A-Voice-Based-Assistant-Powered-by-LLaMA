@@ -1,6 +1,7 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """LLM-powered intent router that maps natural-language commands to registered tools."""
+
 import asyncio
 import hashlib
 import json
@@ -14,6 +15,7 @@ from jarvis.logger import log_action
 # ──────────────────────────────────────────────
 # Data Structures
 # ──────────────────────────────────────────────
+
 
 @dataclass
 class IntentResult:
@@ -32,11 +34,19 @@ _SYSTEM_PROMPT = (
     "You are an intent classifier for a voice assistant. "
     "Given a user command and a list of available tools, decide which tool to call. "
     "Respond with ONLY a valid JSON object — no markdown, no explanation. "
-    "Format: {\"tool\": \"<tool_name_or_null>\", \"params\": {...}} "
+    'Format: {"tool": "<tool_name_or_null>", "params": {...}} '
     "Use null for tool if the request is conversational and no tool fits."
 )
 
-_NEWS_CATEGORIES = {"technology", "business", "health", "sports", "entertainment", "science", "general"}
+_NEWS_CATEGORIES = {
+    "technology",
+    "business",
+    "health",
+    "sports",
+    "entertainment",
+    "science",
+    "general",
+}
 
 # Redis cache TTL for intent results (1 hour)
 _INTENT_CACHE_TTL = 3600
@@ -86,7 +96,7 @@ def _build_classification_prompt(command: str, tools: list) -> str:
         f"{_SYSTEM_PROMPT}\n\n"
         f"Available tools:\n{tool_manifest}\n\n"
         f"{param_notes}\n"
-        f"User command: \"{command}\"\n\n"
+        f'User command: "{command}"\n\n'
         "JSON response:"
     )
 
@@ -94,6 +104,7 @@ def _build_classification_prompt(command: str, tools: list) -> str:
 # ──────────────────────────────────────────────
 # Intent Router
 # ──────────────────────────────────────────────
+
 
 class IntentRouter:
     """
@@ -122,12 +133,12 @@ class IntentRouter:
         log_action(
             "INTENT_INIT",
             "IntentRouter attached to BrainManager.",
-            "My intent routing module is ready."
+            "My intent routing module is ready.",
         )
 
     def _cache_key(self, command: str) -> str:
         """Generate a stable Redis cache key for a command."""
-        digest = hashlib.md5(command.lower().strip().encode()).hexdigest()
+        digest = hashlib.md5(command.lower().strip().encode(), usedforsecurity=False).hexdigest()
         return f"intent:{digest}"
 
     async def classify(self, command: str, tools: list) -> IntentResult:
@@ -155,7 +166,7 @@ class IntentRouter:
             log_action(
                 "INTENT_CACHE_HIT",
                 f"Cache hit for: '{command[:60]}'",
-                "Routing from cached intent — no LLM call needed."
+                "Routing from cached intent — no LLM call needed.",
             )
             # Validate cached tool still exists in current registry
             if cached.tool_name is None or cached.tool_name in known_names:
@@ -193,12 +204,18 @@ class IntentRouter:
         if not self._brain.redis:
             return None
         try:
-            raw = await asyncio.to_thread(self._brain.redis.get, self._cache_key(command))
+            raw = await asyncio.to_thread(
+                self._brain.redis.get, self._cache_key(command)
+            )
             if raw:
                 data = json.loads(raw)
-                return IntentResult(tool_name=data.get("tool_name"), params=data.get("params", {}))
+                return IntentResult(
+                    tool_name=data.get("tool_name"), params=data.get("params", {})
+                )
         except Exception as exc:
-            log_action("INTENT_CACHE_ERR", f"Cache read error: {exc}", "", level=logging.DEBUG)
+            log_action(
+                "INTENT_CACHE_ERR", f"Cache read error: {exc}", "", level=logging.DEBUG
+            )
         return None
 
     async def _cache_intent(self, command: str, result: IntentResult) -> None:
@@ -206,7 +223,9 @@ class IntentRouter:
         if not self._brain.redis:
             return
         try:
-            payload = json.dumps({"tool_name": result.tool_name, "params": result.params})
+            payload = json.dumps(
+                {"tool_name": result.tool_name, "params": result.params}
+            )
             await asyncio.to_thread(
                 self._brain.redis.setex,
                 self._cache_key(command),
@@ -214,7 +233,9 @@ class IntentRouter:
                 payload,
             )
         except Exception as exc:
-            log_action("INTENT_CACHE_ERR", f"Cache write error: {exc}", "", level=logging.DEBUG)
+            log_action(
+                "INTENT_CACHE_ERR", f"Cache write error: {exc}", "", level=logging.DEBUG
+            )
 
     async def _call_llm(self, prompt: str) -> str:
         """
@@ -229,7 +250,7 @@ class IntentRouter:
                 "INTENT_NO_PROVIDER",
                 "No LLM provider available for intent classification.",
                 "I couldn't reach my classification module.",
-                level=logging.WARNING
+                level=logging.WARNING,
             )
             return ""
 
@@ -241,7 +262,7 @@ class IntentRouter:
                 "INTENT_LLM_FAIL",
                 f"LLM call failed during intent classification: {exc}",
                 "I had trouble deciding which action to take.",
-                level=logging.WARNING
+                level=logging.WARNING,
             )
             return ""
 
@@ -254,7 +275,13 @@ class IntentRouter:
         IntentResult(tool_name=None) on any parse or validation failure.
         """
         # Strip markdown fences that some models include despite instructions
-        cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        cleaned = (
+            raw.strip()
+            .removeprefix("```json")
+            .removeprefix("```")
+            .removesuffix("```")
+            .strip()
+        )
 
         try:
             payload = json.loads(cleaned)
@@ -263,7 +290,7 @@ class IntentRouter:
                 "INTENT_PARSE_FAIL",
                 f"JSON decode error: {exc} | Raw: {cleaned[:120]}",
                 "I couldn't parse the routing decision; falling back to conversation.",
-                level=logging.WARNING
+                level=logging.WARNING,
             )
             return IntentResult(tool_name=None)
 
@@ -275,7 +302,7 @@ class IntentRouter:
             log_action(
                 "INTENT_NO_MATCH",
                 f"No tool matched for command. LLM returned: tool={tool_name}",
-                "No specific tool matched; routing to conversational brain."
+                "No specific tool matched; routing to conversational brain.",
             )
             return IntentResult(tool_name=None)
 
@@ -286,6 +313,6 @@ class IntentRouter:
         log_action(
             "INTENT_MATCHED",
             f"Tool: {tool_name} | Params: {params}",
-            f"I've decided to use the '{tool_name.replace('_', ' ')}' capability."
+            f"I've decided to use the '{tool_name.replace('_', ' ')}' capability.",
         )
         return IntentResult(tool_name=tool_name, params=params)
