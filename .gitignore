@@ -95,3 +95,6 @@ temp_vision.png
 # --- Docker ---
 # Ignore override files if they contain local-only configs
 docker-compose.override.yml
+
+# --- Graphify ---
+graphify-out/
