@@ -1,11 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
-
 
 @theme {
   --font-sans: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
+  /* Color Palette Tokens */
   --color-jarvis-bg: #F8FAFC;
   --color-jarvis-primary: #0F172A;
   --color-jarvis-secondary: #64748B;
@@ -13,12 +13,12 @@
   --color-jarvis-accent: #0284C7;
   --color-jarvis-card: #FFFFFF;
 
-  --color-jarvis-bg-dark: #0F172A;
-  --color-jarvis-primary-dark: #F8FAFC;
+  --color-jarvis-bg-dark: #07090e;
+  --color-jarvis-primary-dark: #F1F5F9;
   --color-jarvis-secondary-dark: #94A3B8;
-  --color-jarvis-border-dark: #1E293B;
-  --color-jarvis-accent-dark: #38BDF8;
-  --color-jarvis-card-dark: #1E293B;
+  --color-jarvis-border-dark: #1A2235;
+  --color-jarvis-accent-dark: #00d2ff;
+  --color-jarvis-card-dark: #0c101c;
 }
 
 :root {
@@ -27,6 +27,9 @@
   --border: var(--color-jarvis-border);
   --card: var(--color-jarvis-card);
   --accent: var(--color-jarvis-accent);
+  --accent-rgb: 2, 132, 199;
+  --card-glass: rgba(255, 255, 255, 0.7);
+  --border-glass: rgba(15, 23, 42, 0.08);
 }
 
 .dark {
@@ -35,38 +38,62 @@
   --border: var(--color-jarvis-border-dark);
   --card: var(--color-jarvis-card-dark);
   --accent: var(--color-jarvis-accent-dark);
+  --accent-rgb: 0, 210, 255;
+  --card-glass: rgba(12, 16, 28, 0.45);
+  --border-glass: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
   body {
     background-color: var(--bg);
     color: var(--text);
-    @apply antialiased selection:bg-blue-100;
+    @apply antialiased selection:bg-blue-900/30;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-
-  /* Custom scrollbar */
+  /* Custom Webkit scrollbar for premium feel */
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+    background: var(--border-glass);
+    @apply rounded-full hover:bg-slate-500/30 transition-colors;
   }
 }
 
+/* ── Custom Styling Utilities ───────────────── */
+
 @utility shadow-minimal {
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
 }
 
+/* Glassmorphism 2.0 (Liquid Glass) Utility */
 @utility glass-minimal {
-  background-color: var(--card);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-minimal);
+  background: var(--card-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Glass interactive items */
+@utility glass-interactive {
+  background: var(--card-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  
+  &:hover {
+    background: rgba(var(--accent-rgb), 0.04);
+    border-color: rgba(var(--accent-rgb), 0.25);
+    box-shadow: 0 0 20px 0 rgba(var(--accent-rgb), 0.1);
+  }
 }
 
 @utility scrollbar-hide {
@@ -75,6 +102,12 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Neon glow border highlights */
+@utility glow-active {
+  box-shadow: 0 0 25px -5px rgba(var(--accent-rgb), 0.4), 0 0 10px -2px rgba(var(--accent-rgb), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.6) !important;
 }
 
 /* ── Streaming cursor ─────────────────────────── */
@@ -87,9 +120,10 @@
   &::after {
     content: "▌";
     display: inline-block;
-    margin-left: 2px;
+    margin-left: 4px;
     animation: blink 0.9s step-start infinite;
-    opacity: 1;
+    color: rgba(var(--accent-rgb), 1);
+    font-weight: bold;
   }
 }
 
@@ -103,4 +137,24 @@
 
 @utility save-toast {
   animation: toast-pop 1.8s ease forwards;
+}
+
+/* ── Ambient Fluid Orb Keyframes ──────────────── */
+@keyframes fluid-pulse {
+  0%, 100% {
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    transform: rotate(0deg) scale(0.95);
+  }
+  33% {
+    border-radius: 70% 30% 52% 48% / 60% 40% 60% 40%;
+    transform: rotate(120deg) scale(1.05);
+  }
+  66% {
+    border-radius: 50% 50% 30% 70% / 50% 60% 40% 50%;
+    transform: rotate(240deg) scale(0.98);
+  }
+}
+
+@utility ambient-orb {
+  animation: fluid-pulse 10s ease-in-out infinite;
 }

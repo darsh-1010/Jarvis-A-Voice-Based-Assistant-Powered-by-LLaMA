@@ -9,10 +9,11 @@
  *  - System prompt textarea editor with debounced auto-save
  *  - Speech rate slider
  *  - Save-confirmation micro-animation
+ *  - Premium Glass 2.0 overhaul
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BriefcaseBusiness, Smile, Zap, Volume2, Globe, Moon, Sun, Shield, Check } from 'lucide-react';
+import { BriefcaseBusiness, Smile, Zap, Volume2, Globe, Moon, Sun, Shield, Check, Trash2 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
 interface PersonaPreset {
@@ -44,12 +45,12 @@ function SaveBadge({ visible }: { visible: boolean }) {
       {visible && (
         <motion.span
           key="badge"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold"
+          initial={{ opacity: 0, scale: 0.8, x: 5 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.8, x: 5 }}
+          className="inline-flex items-center gap-1 text-emerald-400 text-xs font-bold"
         >
-          <Check size={12} />
+          <Check size={12} className="stroke-[3px]" />
           Saved
         </motion.span>
       )}
@@ -61,7 +62,6 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
-  /** Which field just saved — used to show the micro-badge */
   const [savedField, setSavedField] = useState<string | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,8 +141,8 @@ export default function SettingsPage() {
 
   if (!settings) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+      <div className="flex-1 flex items-center justify-center bg-[var(--bg)]">
+        <div className="w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -150,23 +150,35 @@ export default function SettingsPage() {
   const rateLabel = settings.speech_rate <= 149 ? 'Slow' : settings.speech_rate <= 174 ? 'Normal' : settings.speech_rate <= 199 ? 'Fast' : 'Very Fast';
 
   return (
-    <div className="flex-1 p-8 md:p-12 overflow-y-auto max-w-4xl mx-auto w-full">
+    <div className="flex-1 p-6 md:p-10 overflow-y-auto max-w-4xl mx-auto w-full bg-transparent scrollbar-hide">
+      
+      {/* Header */}
       <header className="mb-10">
-        <h1 className="text-2xl font-bold mb-1 tracking-tight">System Configuration</h1>
-        <p className="text-sm opacity-50 font-medium">Manage JARVIS core parameters and interaction style.</p>
+        <h1 className="text-3xl font-extrabold text-[var(--text)] tracking-tight font-sans">
+          System Configuration
+        </h1>
+        <p className="text-sm text-[var(--text)] opacity-45 mt-1 font-medium">
+          Manage JARVIS core parameters, tone presets, and ambient settings profiles.
+        </p>
       </header>
 
-      <div className="space-y-10">
+      <div className="space-y-8">
 
         {/* ── Persona Studio ─────────────────────── */}
-        <motion.section initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0 }}>
-          <div className="flex items-center justify-between mb-4 px-1">
-            <h2 className="text-xs font-bold tracking-[0.1em] opacity-40 uppercase">Persona Studio</h2>
+        <motion.section 
+          initial={{ y: 15, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h2 className="text-xs font-black tracking-[0.15em] text-[var(--text)] opacity-40 uppercase">
+              Persona Studio
+            </h2>
             <SaveBadge visible={savedField === 'tone' || savedField === 'persona_custom'} />
           </div>
 
-          {/* Tone cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          {/* Tone cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {presets.map(preset => {
               const Icon = TONE_ICONS[preset.id] ?? BriefcaseBusiness;
               const isActive = settings.tone === preset.id;
@@ -174,77 +186,93 @@ export default function SettingsPage() {
                 <motion.button
                   id={`tone-${preset.id}`}
                   key={preset.id}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleToneSelect(preset.id)}
                   className={`
-                    relative text-left p-5 rounded-2xl border-2 transition-all duration-200
+                    relative text-left p-6 rounded-[24px] border transition-all duration-300 cursor-pointer flex flex-col justify-between h-40
                     ${isActive
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-lg'
-                      : 'border-slate-200 bg-white hover:border-slate-400 text-slate-700'
+                      ? 'bg-[var(--accent)]/15 border-[var(--accent)] text-[var(--text)] glow-active'
+                      : 'glass-interactive border-[var(--border-glass)] text-[var(--text)]'
                     }
                   `}
                 >
-                  {isActive && (
-                    <motion.span
-                      layoutId="tone-active-dot"
-                      className="absolute top-3 right-3 w-2 h-2 rounded-full bg-emerald-400"
-                    />
-                  )}
-                  <Icon size={20} className="mb-3 opacity-80" />
-                  <p className="font-bold text-sm mb-1">{preset.label}</p>
-                  <p className={`text-xs leading-snug ${isActive ? 'opacity-60' : 'opacity-40'}`}>
-                    {preset.description}
-                  </p>
+                  <div className="flex justify-between items-start w-full">
+                    <div className={`
+                      p-3 rounded-2xl
+                      ${isActive ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-slate-500/5 opacity-60'}
+                    `}>
+                      <Icon size={18} />
+                    </div>
+                    {isActive && (
+                      <motion.span
+                        layoutId="tone-active-dot"
+                        className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-extrabold text-sm tracking-tight mb-1 text-[var(--text)]">{preset.label}</p>
+                    <p className="text-[11px] leading-relaxed text-[var(--text)] opacity-50">
+                      {preset.description}
+                    </p>
+                  </div>
                 </motion.button>
               );
             })}
           </div>
 
-          {/* System prompt override */}
-          <div className="glass-minimal rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-50">
-                Custom System Prompt
+          {/* Custom System Prompt Area */}
+          <div className="glass-minimal rounded-[28px] p-6 space-y-4 border border-[var(--border-glass)]">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text)] opacity-40">
+                Custom System Prompt Override
               </p>
-              <p className="text-[10px] opacity-30">Leave empty to use tone preset above</p>
+              <p className="text-[9px] text-[var(--text)] opacity-30 font-bold">Leave empty to use active card preset</p>
             </div>
             <textarea
               id="persona-textarea"
               rows={4}
               value={settings.persona_custom}
               onChange={e => handlePersonaChange(e.target.value)}
-              placeholder="Enter a custom system prompt to fully override the persona..."
-              className="w-full bg-transparent resize-none outline-none text-sm font-mono opacity-70 focus:opacity-100 transition-opacity placeholder:opacity-30 placeholder:font-sans"
+              placeholder="Enter custom instructions to fully override the assistant's persona..."
+              className="w-full bg-transparent resize-none outline-none text-sm font-mono text-[var(--text)] opacity-70 focus:opacity-100 transition-opacity placeholder:opacity-20 placeholder:font-sans leading-relaxed"
             />
           </div>
         </motion.section>
 
-        {/* ── Voice Settings ─────────────────────── */}
-        <motion.section initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
-          <div className="flex items-center justify-between mb-4 px-1">
-            <h2 className="text-xs font-bold tracking-[0.1em] opacity-40 uppercase">Voice & Speech</h2>
+        {/* ── Voice & Speech rate ────────────────── */}
+        <motion.section 
+          initial={{ y: 15, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.05 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h2 className="text-xs font-black tracking-[0.15em] text-[var(--text)] opacity-40 uppercase">
+              Voice & Speech Synthesizer
+            </h2>
             <SaveBadge visible={savedField === 'speech_rate'} />
           </div>
 
-          <div className="glass-minimal rounded-[24px] overflow-hidden">
-            {/* Speech rate slider */}
-            <div className="p-5 border-b border-slate-500/10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-slate-500/10">
+          <div className="glass-minimal rounded-[28px] overflow-hidden border border-[var(--border-glass)]">
+            {/* Slider */}
+            <div className="p-6 border-b border-[var(--border-glass)]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-slate-500/5 text-[var(--accent)] border border-[var(--border-glass)]">
                     <Volume2 size={18} />
                   </div>
                   <div>
-                    <p className="font-bold text-sm tracking-tight">Speech Rate</p>
-                    <p className="text-xs opacity-40 mt-0.5">{rateLabel} — {settings.speech_rate} wpm</p>
+                    <p className="font-extrabold text-sm tracking-tight text-[var(--text)]">Speech Speed</p>
+                    <p className="text-xs text-[var(--text)] opacity-40 mt-0.5">{rateLabel} — {settings.speech_rate} words/min</p>
                   </div>
                 </div>
                 <button
                   id="voice-preview-btn"
                   onClick={handleVoicePreview}
-                  className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-slate-300 rounded-full hover:bg-slate-100 transition-colors"
+                  className="px-5 py-2 text-[10px] font-black uppercase tracking-widest bg-[rgba(var(--accent-rgb),0.08)] border border-[rgba(var(--accent-rgb),0.15)] text-[var(--accent)] rounded-xl hover:bg-[var(--accent)] hover:text-white transition-all cursor-pointer"
                 >
-                  Test Voice
+                  Test Synth
                 </button>
               </div>
               <input
@@ -255,69 +283,86 @@ export default function SettingsPage() {
                 step={10}
                 value={settings.speech_rate}
                 onChange={e => handleRateChange(Number(e.target.value))}
-                className="w-full accent-slate-900 cursor-pointer"
+                className="w-full accent-[var(--accent)] cursor-pointer h-1.5 bg-slate-500/10 rounded-full"
               />
-              <div className="flex justify-between text-[9px] opacity-30 font-bold uppercase tracking-wider mt-1">
-                <span>Slow</span>
-                <span>Fast</span>
+              <div className="flex justify-between text-[9px] opacity-30 font-bold uppercase tracking-wider mt-2 text-[var(--text)]">
+                <span>Adagio</span>
+                <span>Presto</span>
               </div>
             </div>
 
-            {/* Language */}
-            <div className="flex items-center justify-between p-5 opacity-60">
+            {/* Language details */}
+            <div className="flex items-center justify-between p-6 bg-slate-500/2">
               <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-slate-500/10">
+                <div className="p-3 rounded-2xl bg-slate-500/5 text-[var(--text)] opacity-60 border border-[var(--border-glass)]">
                   <Globe size={18} />
                 </div>
-                <p className="font-bold text-sm tracking-tight">Language</p>
+                <p className="font-extrabold text-sm tracking-tight text-[var(--text)]">Language Protocol</p>
               </div>
-              <span className="text-xs font-bold opacity-40">{settings.language}</span>
+              <span className="text-xs font-bold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.08)] px-3 py-1 rounded-full border border-[rgba(var(--accent-rgb),0.15)]">
+                {settings.language}
+              </span>
             </div>
           </div>
         </motion.section>
 
-        {/* ── Visual & System ────────────────────── */}
-        <motion.section initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
-          <h2 className="text-xs font-bold tracking-[0.1em] opacity-40 uppercase mb-4 px-1">Visual & System</h2>
-          <div className="glass-minimal rounded-[24px] overflow-hidden">
+        {/* ── System Variables ───────────────────── */}
+        <motion.section 
+          initial={{ y: 15, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="space-y-4"
+        >
+          <h2 className="text-xs font-black tracking-[0.15em] text-[var(--text)] opacity-40 uppercase mb-2 px-1">
+            Visual & System Configuration
+          </h2>
+          <div className="glass-minimal rounded-[28px] overflow-hidden border border-[var(--border-glass)]">
             <div
               onClick={toggleTheme}
-              className="flex items-center justify-between p-5 hover:bg-slate-500/5 transition-colors cursor-pointer group border-b border-slate-500/10"
+              className="flex items-center justify-between p-6 hover:bg-slate-500/5 transition-colors cursor-pointer group border-b border-[var(--border-glass)]"
             >
               <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-slate-500/10 opacity-60 group-hover:opacity-100 transition-opacity">
+                <div className="p-3 rounded-2xl bg-slate-500/5 text-[var(--accent)] border border-[var(--border-glass)]">
                   {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </div>
-                <p className="font-bold text-sm tracking-tight">Dark Mode</p>
+                <p className="font-extrabold text-sm tracking-tight text-[var(--text)]">Dark Interface</p>
               </div>
-              <span className="text-xs font-bold opacity-40">{theme === 'dark' ? 'Enabled' : 'Disabled'}</span>
+              <span className="text-xs font-bold text-[var(--text)] opacity-50">{theme === 'dark' ? 'Enabled' : 'Disabled'}</span>
             </div>
-            <div className="flex items-center justify-between p-5 opacity-60">
+            
+            <div className="flex items-center justify-between p-6">
               <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-slate-500/10">
+                <div className="p-3 rounded-2xl bg-slate-500/5 text-[var(--text)] opacity-60 border border-[var(--border-glass)]">
                   <Shield size={18} />
                 </div>
-                <p className="font-bold text-sm tracking-tight">Privacy Mode</p>
+                <p className="font-extrabold text-sm tracking-tight text-[var(--text)]">Data Guardrails</p>
               </div>
-              <span className="text-xs font-bold opacity-40">Local Context Only</span>
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                Active Local Sandboxing
+              </span>
             </div>
           </div>
         </motion.section>
 
         {/* ── Emergency Overrides ────────────────── */}
         <motion.div
-          initial={{ y: 20, opacity: 0 }}
+          initial={{ y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="p-8 rounded-[24px] bg-red-500/5 border border-red-500/10"
+          transition={{ delay: 0.15 }}
+          className="p-6 md:p-8 rounded-[28px] bg-rose-500/5 border border-rose-500/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
         >
-          <h3 className="text-red-500 font-bold mb-1 text-sm">Emergency Overrides</h3>
-          <p className="text-red-500/60 text-xs mb-6 font-medium">Reset all neural weights to factory defaults. This action is irreversible.</p>
+          <div className="space-y-1">
+            <h3 className="text-rose-500 font-extrabold text-sm tracking-tight">Factory Resets</h3>
+            <p className="text-rose-500/60 text-xs font-medium leading-relaxed max-w-lg">
+              Revert all local dynamic configurations, tone preferences, custom prompts, and rate parameters back to factory values.
+            </p>
+          </div>
           <button
             id="factory-reset-btn"
-            className="px-6 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-sm"
+            className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-rose-600/10 border border-rose-500/20 text-rose-500 hover:bg-rose-600 hover:text-white text-xs font-black tracking-widest uppercase transition-all shadow-sm cursor-pointer whitespace-nowrap"
           >
-            Initiate Factory Reset
+            <Trash2 size={14} />
+            <span>Reset Profile</span>
           </button>
         </motion.div>
 
