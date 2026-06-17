@@ -1,23 +1,27 @@
 # Copyright (c) 2024-2026 Darsh Shah
 # Licensed under the Business Source License 1.1
 """FastAPI backend for Jarvis v3 (Async Zenith)."""
+
 import asyncio
 import datetime
+import json
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import psutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 # slowapi for rate limiting — add 'slowapi' to requirements.txt
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
     from slowapi.util import get_remote_address
+
     _RATE_LIMITING_AVAILABLE = True
 except ImportError:
     _RATE_LIMITING_AVAILABLE = False
@@ -25,7 +29,14 @@ except ImportError:
 # Ensure the 'backend' directory is in the path so we can import 'jarvis' and 'api'
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from api.models import ChatRequest, ChatResponse, SystemStats, SettingsUpdate
+from api.models import (
+    ChatRequest,
+    ChatResponse,
+    PersonaPreset,
+    StreamChatRequest,
+    SystemStats,
+    SettingsUpdate,
+)
 from jarvis.brain import BrainManager
 from jarvis.commands import media, system, vision, web  # noqa: F401 — registers tools
 from jarvis.commands.registry import registry
@@ -35,11 +46,13 @@ from jarvis.logger import log_action
 from jarvis.memory.reflection import ReflectionEngine
 from jarvis.memory.telemetry import TelemetryStore
 from jarvis.security.guardrails import GuardrailEngine
+from jarvis.settings_manager import settings_manager
 
 
 # ──────────────────────────────────────────────
 # App Lifespan (replaces deprecated @app.on_event)
 # ──────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,7 +63,11 @@ async def lifespan(app: FastAPI):
     attached to app.state so it is properly scoped to the application lifetime,
     enabling clean shutdown and making it trivially testable via dependency injection.
     """
-    log_action("API_STARTUP", "Initializing BrainManager and IntentRouter.", "Jarvis API starting up.")
+    log_action(
+        "API_STARTUP",
+        "Initializing BrainManager and IntentRouter.",
+        "Jarvis API starting up.",
+    )
     app.state.brain = BrainManager()
     app.state.intent_router = IntentRouter(app.state.brain)
 
@@ -66,6 +83,9 @@ async def lifespan(app: FastAPI):
     app.state.brain.set_telemetry_store(app.state.telemetry)
     registry.set_telemetry(app.state.telemetry)
     registry.set_reflection_engine(app.state.reflection)
+
+    # Apply any persisted settings from settings.json to the live config
+    settings_manager.apply_to_config(config)
 
     yield
     log_action("API_SHUTDOWN", "Jarvis API shutting down.", "API offline.")
@@ -90,7 +110,9 @@ app = FastAPI(
     version="3.0.0",
     lifespan=lifespan,
     # FIX: Hide docs in production for security — enable only in dev
-    docs_url="/docs" if os.getenv("JARVIS_ENV", "development") == "development" else None,
+    docs_url="/docs"
+    if os.getenv("JARVIS_ENV", "development") == "development"
+    else None,
     redoc_url=None,
 )
 
@@ -122,6 +144,7 @@ app.add_middleware(
 # ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
+
 
 @app.get("/")
 async def root() -> dict:
@@ -160,7 +183,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
     log_action(
         "API_CHAT",
         f"POST /chat | Input: '{cmd}'",
-        f"I'm processing your chat request: '{cmd}'"
+        f"I'm processing your chat request: '{cmd}'",
     )
 
     brain: BrainManager = request.app.state.brain
@@ -174,7 +197,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             log_action(
                 "API_TOOL",
                 f"Matched Tool: {intent.tool_name} | Params: {intent.params}",
-                f"I'm using the {intent.tool_name} module to fulfill your request."
+                f"I'm using the {intent.tool_name} module to fulfill your request.",
             )
             result = await registry.invoke(intent.tool_name, **intent.params)
             return ChatResponse(response=str(result), history=[])
@@ -188,7 +211,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             "API_ERROR",
             f"Chat fail: {exc}",
             "I had some trouble processing that message.",
-            level=logging.ERROR
+            level=logging.ERROR,
         )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -201,12 +224,16 @@ async def get_stats() -> SystemStats:
     Returns:
         SystemStats: Current CPU, RAM, and Disk usage.
     """
-    log_action("API_STATS", "GET /system/stats", "I'm checking my system performance metrics.")
+    log_action(
+        "API_STATS", "GET /system/stats", "I'm checking my system performance metrics."
+    )
     return SystemStats(
         cpu_percent=psutil.cpu_percent(),
         ram_percent=psutil.virtual_memory().percent,
-        disk_usage=psutil.disk_usage('/').percent,
-        boot_time=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+        disk_usage=psutil.disk_usage("/").percent,
+        boot_time=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
     )
 
 
@@ -221,13 +248,19 @@ async def control_volume(direction: str) -> dict:
     Returns:
         dict: Success status.
     """
-    log_action("API_VOLUME", f"POST /volume/{direction}", f"Adjusting system volume {direction}.")
+    log_action(
+        "API_VOLUME",
+        f"POST /volume/{direction}",
+        f"Adjusting system volume {direction}.",
+    )
     if direction == "up":
         await registry.invoke("volume_up")
     elif direction == "down":
         await registry.invoke("volume_down")
     else:
-        raise HTTPException(status_code=400, detail="Invalid direction. Use 'up' or 'down'.")
+        raise HTTPException(
+            status_code=400, detail="Invalid direction. Use 'up' or 'down'."
+        )
     return {"status": "success", "action": f"volume {direction}"}
 
 
@@ -239,7 +272,9 @@ async def get_settings() -> dict:
     Returns:
         dict: The global configuration settings.
     """
-    log_action("API_SETTINGS", "GET /settings", "I'm retrieving my configuration profile.")
+    log_action(
+        "API_SETTINGS", "GET /settings", "I'm retrieving my configuration profile."
+    )
     # FIX: config.dict() is deprecated in Pydantic v2 — replaced with model_dump()
     return config.model_dump()
 
@@ -258,16 +293,18 @@ async def update_settings(update: SettingsUpdate) -> dict:
     log_action(
         "API_SETTINGS_UPDATE",
         f"POST /settings | Data: {update}",
-        "I'm updating my assistant settings."
+        "I'm updating my assistant settings.",
     )
-    # Note: In V3.0, Pydantic Settings are loaded from env at startup.
-    # For dynamic updates, a more complex state manager is needed.
-    return {"status": "success", "message": "Settings updated locally (simulated)"}
+    update_data = update.model_dump(exclude_none=True)
+    settings_manager.update(update_data)
+    settings_manager.apply_to_config(config)
+    return {"status": "success", "message": "Settings applied.", "applied": update_data}
 
 
 # ──────────────────────────────────────────────
 # Self-Improvement Memory Endpoints
 # ──────────────────────────────────────────────
+
 
 @app.get("/memory/stats")
 async def get_memory_stats(request: Request) -> dict:
@@ -277,7 +314,9 @@ async def get_memory_stats(request: Request) -> dict:
     Returns:
         dict: Tool performance summary from the telemetry store.
     """
-    log_action("API_MEMORY_STATS", "GET /memory/stats", "Fetching tool performance stats.")
+    log_action(
+        "API_MEMORY_STATS", "GET /memory/stats", "Fetching tool performance stats."
+    )
     brain: BrainManager = request.app.state.brain
     stats = await brain.get_performance_summary()
     return {"status": "ok", "data": stats}
@@ -294,10 +333,11 @@ async def get_reflections(request: Request) -> dict:
     log_action(
         "API_MEMORY_REFLECTIONS",
         "GET /memory/reflections",
-        "Fetching self-reflection history."
+        "Fetching self-reflection history.",
     )
     try:
         from jarvis.memory.knowledge import kb
+
         results = await asyncio.to_thread(
             kb.query,
             "self_reflection optimization improvement",
@@ -336,23 +376,22 @@ async def rollback_patch(patch_id: int, request: Request) -> dict:
     log_action(
         "API_MEMORY_ROLLBACK",
         f"POST /memory/patches/{patch_id}/rollback",
-        f"Rolling back patch ID {patch_id}."
+        f"Rolling back patch ID {patch_id}.",
     )
     telemetry: TelemetryStore = request.app.state.telemetry
     backup_path = await telemetry.get_patch_backup_path(patch_id)
     if not backup_path:
         raise HTTPException(
-            status_code=404,
-            detail=f"No backup found for patch ID {patch_id}."
+            status_code=404, detail=f"No backup found for patch ID {patch_id}."
         )
 
     import shutil
     from pathlib import Path
+
     src = Path(backup_path)
     if not src.exists():
         raise HTTPException(
-            status_code=404,
-            detail=f"Backup file missing on disk: {backup_path}"
+            status_code=404, detail=f"Backup file missing on disk: {backup_path}"
         )
 
     # Derive original target path from patch_log
@@ -371,13 +410,89 @@ async def rollback_patch(patch_id: int, request: Request) -> dict:
     try:
         await asyncio.to_thread(shutil.copy2, str(src), target_path)
     except OSError as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Rollback failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {exc}") from exc
 
     log_action(
         "API_ROLLBACK_DONE",
         f"Restored: {target_path} from {backup_path}",
-        f"Rollback complete for patch {patch_id}."
+        f"Rollback complete for patch {patch_id}.",
     )
     return {"status": "ok", "restored": target_path, "from_backup": backup_path}
+
+
+# ──────────────────────────────────────────────
+# Persona & Streaming Endpoints
+# ──────────────────────────────────────────────
+
+
+@app.get("/settings/personas", response_model=list[PersonaPreset])
+async def get_persona_presets() -> list[PersonaPreset]:
+    """
+    Return the list of built-in tone presets for the Persona Studio UI.
+
+    Returns:
+        list[PersonaPreset]: Each preset's id, label, and description.
+    """
+    log_action("API_PERSONAS", "GET /settings/personas", "Returning tone preset list.")
+    return [PersonaPreset(**p) for p in settings_manager.list_tone_presets()]
+
+
+@app.post("/chat/stream")
+async def chat_stream(request: Request, body: StreamChatRequest) -> StreamingResponse:
+    """
+    Streaming chat endpoint — yields LLM tokens via Server-Sent Events.
+
+    The frontend opens this with ``fetch() + ReadableStream``.
+    Each chunk is JSON-encoded and formatted as ``data: <json>\\n\\n``.
+    A terminal ``data: [DONE]\\n\\n`` signals end of stream.
+
+    Args:
+        request: FastAPI request object.
+        body:    The user's message.
+
+    Returns:
+        StreamingResponse: An SSE text/event-stream response.
+    """
+    cmd = body.message.strip()
+    log_action(
+        "API_STREAM", f"POST /chat/stream | Input: '{cmd}'", "Starting token stream."
+    )
+
+    brain: BrainManager = request.app.state.brain
+    intent_router: IntentRouter = request.app.state.intent_router
+
+    async def _event_generator() -> AsyncGenerator[str, None]:
+        """Yield SSE-formatted token chunks from the LLM stream."""
+        try:
+            tools = registry.list_tools()
+            intent = await intent_router.classify(cmd, tools)
+
+            if intent.tool_name:
+                # Tool matched — invoke it and yield the full result as one chunk
+                result = await registry.invoke(intent.tool_name, **intent.params)
+                yield f"data: {json.dumps(str(result))}\n\n"
+            else:
+                # No tool — stream from brain token by token
+                async for token in brain.generate_response_stream(cmd):
+                    yield f"data: {json.dumps(token)}\n\n"
+
+        except Exception as exc:
+            log_action(
+                "API_STREAM_ERROR",
+                f"Stream error: {exc}",
+                "Streaming encountered an error.",
+                level=logging.ERROR,
+            )
+            yield f"data: {json.dumps('[ERROR] ' + str(exc))}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable Nginx buffering if behind a proxy
+            "Connection": "keep-alive",
+        },
+    )

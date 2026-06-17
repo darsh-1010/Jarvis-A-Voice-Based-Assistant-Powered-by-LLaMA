@@ -69,11 +69,38 @@
   box-shadow: var(--shadow-minimal);
 }
 
-
 @utility scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* ── Streaming cursor ─────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@utility streaming-cursor {
+  &::after {
+    content: "▌";
+    display: inline-block;
+    margin-left: 2px;
+    animation: blink 0.9s step-start infinite;
+    opacity: 1;
+  }
+}
+
+/* ── Save-confirmation micro-toast ────────────── */
+@keyframes toast-pop {
+  0%   { opacity: 0; transform: translateY(4px) scale(0.95); }
+  20%  { opacity: 1; transform: translateY(0) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@utility save-toast {
+  animation: toast-pop 1.8s ease forwards;
 }

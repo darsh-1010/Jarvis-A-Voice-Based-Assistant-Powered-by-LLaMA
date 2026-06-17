@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-17] — Elite UX Upgrade: Streaming, Live Settings & Persona Studio
+
+### Added
+- **`backend/jarvis/persona.py`**: New tone-aware persona builder. Maps tone presets (`professional`, `friendly`, `sarcastic`) to semantic system-prompt modifiers. Supports a full custom-override mode for power users. Single source of truth for all persona strings.
+- **`POST /chat/stream`**: New SSE streaming endpoint. Uses LiteLLM's native `stream=True` to yield tokens as they arrive (via `generate_response_stream()` on `BrainManager`). Formatted as `data: <json>\n\n` with a `[DONE]` terminal event. Frontend uses `fetch + ReadableStream`.
+- **`GET /settings/personas`**: New endpoint returning the list of tone presets (id, label, description) for the Persona Studio UI.
+- **`generate_response_stream()`** on `BrainManager`: Async generator that streams tokens from LiteLLM Router. History is saved once the full response is assembled.
+- **Streaming cursor** in `globals.css`: `@keyframes blink` + `streaming-cursor` utility class renders a `▌` blinking cursor while tokens arrive.
+- **Save-toast animation** in `globals.css`: `save-toast` utility for settings confirmation micro-animations.
+
+### Changed
+- **`POST /settings`**: No longer a stub. Now calls `settings_manager.update()` + `settings_manager.apply_to_config(config)` to patch the live config object in-memory — changes take effect on the next LLM call, no restart required.
+- **`settings_manager.py`**: Full rewrite — added `apply_to_config()`, `list_tone_presets()`, and `persona_custom` field. Integrated with `persona.py`.
+- **`api/models.py`**: Added `StreamChatRequest`, `PersonaPreset` models; updated `SettingsUpdate` with `persona_custom` and Pydantic v2 validators for tone and speech_rate.
+- **`frontend/src/app/page.tsx`**: HUD now consumes the SSE stream with typewriter rendering, new `streaming` orb-state (distinct bar animation speed), and a Stop button to abort in-flight streams.
+- **`frontend/src/app/settings/page.tsx`**: Full Persona Studio — visual tone-card selector with animated active indicator, system-prompt textarea with 500ms debounced save, speech rate slider (140–220 wpm), save-confirmation micro-badge, Voice Preview button.
+
 ## [2026-06-15] — Self-Improvement Loop, Security Guardrails & LiteLLM Integration
 ### Added
 - **LiteLLM Router Integration**: Added `litellm.Router` in `backend/jarvis/brain.py` for unified multi-provider failover. Automatically routes across Google Gemini, Groq Cloud, and local Ollama if keys are present.

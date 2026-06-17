@@ -1,0 +1,9 @@
+{
+    "persona_custom": "You are a sarcastic AI helper who uses the word \"Arrr\" occasionally.",
+    "tone": "sarcastic",
+    "voice_id": 0,
+    "speech_rate": 180,
+    "sensitivity": "High",
+    "language": "English (US)",
+    "dark_mode": false
+}

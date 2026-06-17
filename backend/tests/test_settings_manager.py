@@ -19,8 +19,8 @@ class TestSettingsManagerDefaults:
         assert manager.settings == DEFAULT_SETTINGS
 
     def test_persona_in_defaults(self):
-        """DEFAULT_SETTINGS should contain the 'persona' key."""
-        assert "persona" in DEFAULT_SETTINGS
+        """DEFAULT_SETTINGS should contain the 'persona_custom' key."""
+        assert "persona_custom" in DEFAULT_SETTINGS
 
     def test_tone_in_defaults(self):
         """DEFAULT_SETTINGS should contain the 'tone' key."""
@@ -52,7 +52,7 @@ class TestSettingsManagerLoad:
              patch("builtins.open", m):
             manager = SettingsManager()
         # Should still have default values
-        assert "persona" in manager.settings
+        assert "persona_custom" in manager.settings
 
     def test_load_no_file_uses_defaults(self):
         """load() should leave settings as defaults when no file exists."""

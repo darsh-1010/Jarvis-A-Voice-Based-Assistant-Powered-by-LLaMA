@@ -4,9 +4,9 @@
  */
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Settings, Shield, Activity, List, Terminal, MessageSquare } from 'lucide-react';
+import { Mic, Shield, Activity, List, MessageSquare, StopCircle } from 'lucide-react';
 
 interface Stats {
   cpu_percent: number;
@@ -14,26 +14,32 @@ interface Stats {
   disk_usage: number;
 }
 
+type OrbState = 'idle' | 'listening' | 'thinking' | 'streaming' | 'error';
+
 /**
  * Voice Assistant HUD.
- * Redesigned to focus on ambient voice interaction rather than a chat interface.
+ * Redesigned to focus on ambient voice interaction with live streaming responses.
  */
 export default function AssistantDashboard() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string }[]>([]);
   const [input, setInput] = useState('');
-  const [orbState, setOrbState] = useState<'idle' | 'listening' | 'thinking' | 'error'>('idle');
+  const [orbState, setOrbState] = useState<OrbState>('idle');
   const [stats, setStats] = useState<Stats>({ cpu_percent: 0, ram_percent: 0, disk_usage: 0 });
   const [isApiOnline, setIsApiOnline] = useState(true);
+  /** Accumulates streaming tokens before they are committed to messages. */
+  const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Ref to abort an in-flight stream. */
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Auto-scroll to latest "caption"
+  // Auto-scroll to latest message
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingText]);
 
-  // Fetch system stats periodically
+  // Poll system stats every 2 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -45,7 +51,7 @@ export default function AssistantDashboard() {
         } else {
           setIsApiOnline(false);
         }
-      } catch (err) {
+      } catch {
         setIsApiOnline(false);
       }
     }, 2000);
@@ -53,30 +59,100 @@ export default function AssistantDashboard() {
   }, []);
 
   /**
-   * Handle sending a message to the AI
+   * Stop an in-flight stream immediately.
    */
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = input;
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setOrbState('idle');
+    // Commit whatever was streamed so far
+    setStreamingText(prev => {
+      if (prev) {
+        setMessages(msgs => [...msgs, { role: 'assistant', text: prev + ' [stopped]' }]);
+      }
+      return '';
+    });
+  }, []);
+
+  /**
+   * Send a message — uses the SSE /chat/stream endpoint for typewriter rendering.
+   */
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || orbState === 'streaming') return;
+
+    const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setOrbState('thinking');
-    
+    setStreamingText('');
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const res = await fetch('http://localhost:8000/chat', {
+      const res = await fetch('http://localhost:8000/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', text: data.response }]);
-      setOrbState('idle');
-    } catch (err) {
+
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      setOrbState('streaming');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        // SSE lines are "data: <json>\n\n"
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+        for (const line of lines) {
+          const payload = line.slice(6).trim(); // strip "data: "
+          if (payload === '[DONE]') {
+            // Stream complete — commit to messages
+            setMessages(prev => [...prev, { role: 'assistant', text: accumulated }]);
+            setStreamingText('');
+            setOrbState('idle');
+            return;
+          }
+          try {
+            const token: string = JSON.parse(payload);
+            accumulated += token;
+            setStreamingText(accumulated);
+          } catch {
+            // Ignore malformed chunks
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return; // User stopped
       setOrbState('error');
-      setMessages(prev => [...prev, { role: 'assistant', text: "Neural link lost. Attempting reconnection..." }]);
+      setStreamingText('');
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Neural link lost. Attempting reconnection...' }]);
       setTimeout(() => setOrbState('idle'), 3000);
+    } finally {
+      abortControllerRef.current = null;
     }
-  };
+  }, [input, orbState]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSend();
+  }, [handleSend]);
+
+  /** Bar heights for the visualizer — derived from orb state */
+  const barHeights = [4, 12, 24, 18, 8, 14, 10];
+  const isAnimating = orbState === 'thinking' || orbState === 'listening' || orbState === 'streaming';
+  const barDuration = orbState === 'thinking' ? 0.4 : orbState === 'streaming' ? 0.7 : 1.2;
 
   return (
     <div className="flex-1 flex flex-col p-8 md:p-12 min-w-0 h-full relative overflow-hidden">
@@ -85,8 +161,8 @@ export default function AssistantDashboard() {
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <motion.div 
           animate={{ 
-            scale: orbState === 'thinking' ? [1, 1.2, 1] : 1,
-            opacity: orbState === 'listening' ? 0.05 : 0 
+            scale: orbState === 'thinking' ? [1, 1.2, 1] : orbState === 'streaming' ? [1, 1.05, 1] : 1,
+            opacity: orbState === 'listening' ? 0.05 : orbState === 'streaming' ? 0.03 : 0 
           }}
           transition={{ duration: 2, repeat: Infinity }}
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-slate-400 rounded-full blur-[120px]" 
@@ -115,7 +191,7 @@ export default function AssistantDashboard() {
         
         {/* Central Visualizer Hub */}
         <div className="relative mb-24">
-           {/* Outer Pulsing Rings */}
+           {/* Outer Pulsing Ring (listening) */}
            {orbState === 'listening' && (
              <motion.div 
                initial={{ scale: 0.8, opacity: 0 }}
@@ -126,20 +202,21 @@ export default function AssistantDashboard() {
            )}
 
            <div className="flex items-end gap-3 h-24 relative">
-            {[4, 12, 24, 18, 8, 14, 10].map((h, i) => (
+            {barHeights.map((h, i) => (
               <motion.div
                 key={i}
-                animate={orbState === 'thinking' || orbState === 'listening' ? { 
+                animate={isAnimating ? { 
                   height: [`${h * 2}px`, `${h * 4}px`, `${h * 2}px`] 
                 } : { height: [`${h}px`] }}
                 transition={{ 
-                  duration: orbState === 'thinking' ? 0.6 : 1.2, 
+                  duration: barDuration, 
                   repeat: Infinity, 
                   delay: i * 0.08 
                 }}
                 className={`w-2.5 rounded-full transition-colors duration-500 ${
                   orbState === 'error' ? 'bg-red-500' : 
-                  orbState === 'thinking' ? 'bg-slate-900' : 
+                  orbState === 'thinking' ? 'bg-slate-900' :
+                  orbState === 'streaming' ? 'bg-slate-600' :
                   'bg-slate-200'
                 }`}
               />
@@ -147,20 +224,30 @@ export default function AssistantDashboard() {
           </div>
         </div>
 
-        {/* Ambient Caption Stream (Instead of Chat Bubbles) */}
+        {/* Caption Stream — shows streaming text with blinking cursor, then committed messages */}
         <div 
           ref={scrollRef}
-          className="w-full max-w-2xl h-32 overflow-y-auto scrollbar-hide flex flex-col items-center text-center px-6"
+          className="w-full max-w-2xl h-40 overflow-y-auto scrollbar-hide flex flex-col items-center text-center px-6"
         >
           <AnimatePresence mode="wait">
-            {messages.length === 0 ? (
+            {/* Live streaming in progress */}
+            {streamingText ? (
+              <motion.p
+                key="streaming"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-2xl md:text-3xl font-light text-slate-900 leading-tight streaming-cursor"
+              >
+                {streamingText}
+              </motion.p>
+            ) : messages.length === 0 ? (
               <motion.p 
                 key="waiting"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.3 }}
                 className="text-xl md:text-2xl font-light text-slate-400 tracking-tight"
               >
-                "Waiting for instruction..."
+                &quot;Waiting for instruction...&quot;
               </motion.p>
             ) : (
               <motion.div 
@@ -169,13 +256,11 @@ export default function AssistantDashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-4"
               >
-                {/* User query (Small, subtle) */}
                 {messages[messages.length - 1].role === 'user' && (
                   <p className="text-sm font-bold text-slate-300 uppercase tracking-widest">
                     {messages[messages.length - 1].text}
                   </p>
                 )}
-                {/* Assistant response (Large, primary) */}
                 {messages[messages.length - 1].role === 'assistant' && (
                   <p className="text-2xl md:text-3xl font-light text-slate-900 leading-tight">
                     {messages[messages.length - 1].text}
@@ -200,6 +285,7 @@ export default function AssistantDashboard() {
             ].map((action) => (
               <button
                 key={action.label}
+                onClick={() => setInput(action.label)}
                 className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-all shadow-sm"
               >
                 <action.icon size={14} />
@@ -208,27 +294,42 @@ export default function AssistantDashboard() {
             ))}
           </div>
 
-          {/* New Voice-Centric Input Bar */}
+          {/* Input Bar */}
           <div className="w-full max-w-xl flex items-center gap-4 bg-white/50 backdrop-blur-md p-2 pl-6 rounded-full border border-slate-200 shadow-minimal focus-within:border-slate-900 transition-all">
             <input 
+              id="chat-input"
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={orbState === 'listening' ? "Listening..." : "Type or speak a command..."} 
+              onKeyDown={handleKeyDown}
+              placeholder={orbState === 'listening' ? 'Listening...' : 'Type a command...'} 
               className="bg-transparent flex-1 text-sm outline-none font-medium text-slate-700 placeholder:text-slate-400" 
+              disabled={orbState === 'streaming'}
             />
-            <button 
-              onClick={() => {
-                if (input) handleSend();
-                else setOrbState(orbState === 'listening' ? 'idle' : 'listening');
-              }}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                orbState === 'listening' ? 'bg-slate-900 text-white animate-pulse' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              {orbState === 'listening' ? <Mic size={20} /> : <MessageSquare size={20} />}
-            </button>
+            {/* Stop button during streaming */}
+            {orbState === 'streaming' ? (
+              <button 
+                id="stop-stream-btn"
+                onClick={handleStop}
+                className="w-12 h-12 rounded-full flex items-center justify-center bg-red-100 text-red-500 hover:bg-red-200 transition-all"
+                title="Stop response"
+              >
+                <StopCircle size={20} />
+              </button>
+            ) : (
+              <button 
+                id="send-btn"
+                onClick={() => {
+                  if (input) handleSend();
+                  else setOrbState(orbState === 'listening' ? 'idle' : 'listening');
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                  orbState === 'listening' ? 'bg-slate-900 text-white animate-pulse' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-900'
+                }`}
+              >
+                {orbState === 'listening' ? <Mic size={20} /> : <MessageSquare size={20} />}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -253,5 +354,3 @@ function StatMini({ label, value }: { label: string, value: number }) {
     </div>
   );
 }
-
-

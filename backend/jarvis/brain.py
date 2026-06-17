@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any
+from typing import AsyncGenerator, List, Optional, Any
 
 import redis
 import tiktoken
@@ -35,7 +35,9 @@ class LiteLLMProviderWrapper(BaseProvider):
     async def generate(self, question: str, context: str, timeout: int = 20) -> str:
         """Generate a response using the LiteLLM Router."""
         context_block = context.strip() if context.strip() else "No additional context."
-        user_content = f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        user_content = (
+            f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        )
         messages: List[Any] = [
             {"role": "system", "content": config.jarvis_persona},
             {"role": "user", "content": user_content},
@@ -219,8 +221,12 @@ class BrainManager:
             f"KNOWLEDGE BASE:\n{kb_context}\n\nCONVERSATION HISTORY:\n"
             + "\n".join(history)
         )
-        context_block = full_context.strip() if full_context.strip() else "No additional context."
-        user_content = f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        context_block = (
+            full_context.strip() if full_context.strip() else "No additional context."
+        )
+        user_content = (
+            f"[RELEVANT CONTEXT]\n{context_block}\n\n[USER REQUEST]\n{question}"
+        )
         messages: List[Any] = [
             {"role": "system", "content": config.jarvis_persona},
             {"role": "user", "content": user_content},
@@ -271,6 +277,61 @@ class BrainManager:
                 level=logging.ERROR,
             )
             return f"I'm sorry, sir. All modules failed. Error: {exc}"
+
+    async def generate_response_stream(
+        self, question: str
+    ) -> AsyncGenerator[str, None]:
+        """Stream tokens from the LiteLLM Router as they arrive.
+
+        Yields individual token strings. History is saved once the stream
+        completes, preserving the same sliding-window logic as
+        generate_response().
+
+        Args:
+            question: The user's query string.
+
+        Yields:
+            str: Individual token chunks from the LLM.
+        """
+        if not question:
+            yield "I didn't hear anything."
+            return
+
+        messages, _, history = await self._prepare_payload(question)
+
+        full_response = ""
+        try:
+            response = await self.router.acompletion(
+                model="jarvis-default",
+                messages=messages,
+                stream=True,
+            )
+            async for chunk in response:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    full_response += token
+                    yield token
+
+        except Exception as exc:
+            log_action(
+                "BRAIN_STREAM_FAIL",
+                f"Streaming failed: {exc}",
+                "Streaming encountered an error.",
+                level=logging.ERROR,
+            )
+            yield f"I'm sorry, sir. Streaming failed. Error: {exc}"
+            return
+
+        # Persist the completed response to history
+        history.append(f"User: {question}")
+        history.append(f"Assistant: {full_response}")
+        await self._save_history(history)
+
+        log_action(
+            "BRAIN_STREAM_DONE",
+            f"Stream complete | Chars: {len(full_response)}",
+            "I've finished streaming my response.",
+        )
 
     async def analyze_error(self, command: str, error: str) -> str:
         """Logic for Self-Correcting Code Agent."""
